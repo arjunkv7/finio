@@ -1,7 +1,8 @@
 import React from 'react';
 import { Text, TextStyle } from 'react-native';
-import { DS, Typography } from '../constants';
+import { Typography } from '../constants';
 import { useSettingsStore } from '../store/settingsStore';
+import { useDS } from '../hooks/useDS';
 
 type AmountSize = 'sm' | 'md' | 'lg' | 'xl';
 type AmountType = 'income' | 'expense' | 'neutral';
@@ -21,12 +22,6 @@ const SIZE_STYLE: Record<AmountSize, TextStyle> = {
   xl: Typography.displayAmount,    // 48 / 700
 };
 
-const TYPE_COLOR: Record<AmountType, string> = {
-  income: DS.primaryLight,    // #4EDEA3
-  expense: DS.secondaryLight, // #FFB2B7
-  neutral: DS.text.primary,   // #E2E2E8
-};
-
 export default function AmountText({
   amount,
   type,
@@ -35,6 +30,13 @@ export default function AmountText({
   style,
 }: AmountTextProps) {
   const { currencySymbol } = useSettingsStore();
+  const ds = useDS();
+
+  const typeColor: Record<AmountType, string> = {
+    income: ds.primaryLight,
+    expense: ds.secondaryLight,
+    neutral: ds.text.primary,
+  };
 
   const formatted = (Math.abs(amount) / 100).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
@@ -50,7 +52,7 @@ export default function AmountText({
     : '';
 
   return (
-    <Text style={[SIZE_STYLE[size], { color: TYPE_COLOR[type] }, style]}>
+    <Text style={[SIZE_STYLE[size], { color: typeColor[type] }, style]}>
       {sign}
       {currencySymbol}
       {formatted}

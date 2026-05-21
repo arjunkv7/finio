@@ -15,7 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
@@ -92,9 +93,11 @@ interface MonthPickerSheetProps {
   year: number;
   month: number;
   onChange: (year: number, month: number) => void;
+  ds: DSType;
+  styles: ReturnType<typeof makeStyles>;
 }
 
-function MonthPickerSheet({ visible, onClose, year, month, onChange }: MonthPickerSheetProps) {
+function MonthPickerSheet({ visible, onClose, year, month, onChange, ds, styles }: MonthPickerSheetProps) {
   const [ly, setLy] = useState(year);
   const [lm, setLm] = useState(month);
   const now = new Date();
@@ -115,45 +118,27 @@ function MonthPickerSheet({ visible, onClose, year, month, onChange }: MonthPick
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Select Month">
-      <View style={ps.body}>
-        <View style={ps.row}>
-          <TouchableOpacity style={ps.arrow} onPress={() => step(-1)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="chevron-left" size={26} color={DS.text.secondary} />
+      <View style={styles.pickerBody}>
+        <View style={styles.pickerRow}>
+          <TouchableOpacity style={styles.pickerArrow} onPress={() => step(-1)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="chevron-left" size={26} color={ds.text.secondary} />
           </TouchableOpacity>
-          <Text style={ps.label}>{MONTH_NAMES[lm - 1]} {ly}</Text>
+          <Text style={styles.pickerLabel}>{MONTH_NAMES[lm - 1]} {ly}</Text>
           <TouchableOpacity
-            style={ps.arrow} onPress={() => step(1)}
+            style={styles.pickerArrow} onPress={() => step(1)}
             disabled={isAtNow} activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="chevron-right" size={26}
-              color={isAtNow ? DS.text.muted : DS.text.secondary} />
+              color={isAtNow ? ds.text.muted : ds.text.secondary} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={ps.confirmBtn} onPress={confirm} activeOpacity={0.85}>
-          <Text style={ps.confirmText}>Show {MONTH_NAMES[lm - 1]} {ly}</Text>
+        <TouchableOpacity style={styles.pickerConfirmBtn} onPress={confirm} activeOpacity={0.85}>
+          <Text style={styles.pickerConfirmText}>Show {MONTH_NAMES[lm - 1]} {ly}</Text>
         </TouchableOpacity>
       </View>
     </BottomSheet>
   );
 }
-
-const ps = StyleSheet.create({
-  body: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  label: {
-    flex: 1, textAlign: 'center',
-    fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28,
-    letterSpacing: -0.44, color: DS.text.primary,
-  },
-  confirmBtn: {
-    height: 52, borderRadius: DS.radius.md, backgroundColor: DS.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  confirmText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: '#fff',
-  },
-});
 
 // ── Monthly summary footer ────────────────────────────────────────────────────
 
@@ -164,39 +149,41 @@ interface SummaryBarProps {
   year: number;
   month: number;
   currencySymbol: string;
+  ds: DSType;
+  styles: ReturnType<typeof makeStyles>;
 }
 
-function SummaryBar({ income, expenses, net, year, month, currencySymbol }: SummaryBarProps) {
+function SummaryBar({ income, expenses, net, year, month, currencySymbol, ds, styles }: SummaryBarProps) {
   const isPositive = net >= 0;
   return (
-    <View style={sb.container}>
-      <Text style={sb.period}>{MONTH_NAMES[month - 1]} {year}</Text>
-      <View style={sb.row}>
-        <View style={sb.stat}>
-          <View style={[sb.dot, { backgroundColor: DS.primary }]} />
+    <View style={styles.summaryContainer}>
+      <Text style={styles.summaryPeriod}>{MONTH_NAMES[month - 1]} {year}</Text>
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryStat}>
+          <View style={[styles.summaryDot, { backgroundColor: ds.primary }]} />
           <View>
-            <Text style={sb.statLabel}>Income</Text>
-            <Text style={[sb.statValue, { color: DS.primaryLight }]}>
+            <Text style={styles.summaryStatLabel}>Income</Text>
+            <Text style={[styles.summaryStatValue, { color: ds.primaryLight }]}>
               {formatPaise(income, currencySymbol)}
             </Text>
           </View>
         </View>
-        <View style={sb.divider} />
-        <View style={sb.stat}>
-          <View style={[sb.dot, { backgroundColor: DS.secondary }]} />
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryStat}>
+          <View style={[styles.summaryDot, { backgroundColor: ds.secondary }]} />
           <View>
-            <Text style={sb.statLabel}>Expenses</Text>
-            <Text style={[sb.statValue, { color: DS.secondaryLight }]}>
+            <Text style={styles.summaryStatLabel}>Expenses</Text>
+            <Text style={[styles.summaryStatValue, { color: ds.secondaryLight }]}>
               {formatPaise(expenses, currencySymbol)}
             </Text>
           </View>
         </View>
-        <View style={sb.divider} />
-        <View style={sb.stat}>
-          <View style={[sb.dot, { backgroundColor: isPositive ? DS.primary : DS.secondary }]} />
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryStat}>
+          <View style={[styles.summaryDot, { backgroundColor: isPositive ? ds.primary : ds.secondary }]} />
           <View>
-            <Text style={sb.statLabel}>Net</Text>
-            <Text style={[sb.statValue, { color: isPositive ? DS.primaryLight : DS.secondaryLight }]}>
+            <Text style={styles.summaryStatLabel}>Net</Text>
+            <Text style={[styles.summaryStatValue, { color: isPositive ? ds.primaryLight : ds.secondaryLight }]}>
               {net < 0 ? '−' : '+'}{formatPaise(Math.abs(net), currencySymbol)}
             </Text>
           </View>
@@ -206,36 +193,11 @@ function SummaryBar({ income, expenses, net, year, month, currencySymbol }: Summ
   );
 }
 
-const sb = StyleSheet.create({
-  container: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-  },
-  period: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
-    letterSpacing: 0.6, textTransform: 'uppercase', color: DS.text.muted,
-    marginBottom: 12,
-  },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  stat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  statLabel: {
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: DS.text.muted,
-    marginBottom: 2,
-  },
-  statValue: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
-  },
-  divider: { width: 1, height: 36, backgroundColor: DS.border.subtle, marginHorizontal: 8 },
-});
-
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function HistoryScreen() {
+  const ds       = useDS();
+  const styles   = useMemo(() => makeStyles(ds), [ds]);
   const navigation  = useNavigation<any>();
   const insets      = useSafeAreaInsets();
 
@@ -383,8 +345,8 @@ export default function HistoryScreen() {
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     if (item.kind === 'header') {
       return (
-        <View style={s.dateHeader}>
-          <Text style={s.dateHeaderText}>{item.label}</Text>
+        <View style={styles.dateHeader}>
+          <Text style={styles.dateHeaderText}>{item.label}</Text>
         </View>
       );
     }
@@ -395,7 +357,7 @@ export default function HistoryScreen() {
     return (
       <TransactionListItem
         icon={(cat?.icon ?? 'cash-multiple') as any}
-        iconColor={cat?.color ?? DS.text.muted}
+        iconColor={cat?.color ?? ds.text.muted}
         name={tx.description ?? cat?.name ?? (tx.type === 'income' ? 'Income' : tx.type === 'transfer' ? 'Transfer' : 'Expense')}
         category={meta || tx.type}
         date={''}
@@ -405,46 +367,46 @@ export default function HistoryScreen() {
         onDelete={() => handleDelete(tx)}
       />
     );
-  }, [getCategoryById, accountName, handleEdit, handleDelete]);
+  }, [getCategoryById, accountName, handleEdit, handleDelete, ds, styles]);
 
   // ── Header component (search + chips) ────────────────────────────────────
 
   const ListHeader = (
-    <View style={s.listHeader}>
+    <View style={styles.listHeader}>
       {/* Search */}
-      <View style={s.searchRow}>
-        <MaterialCommunityIcons name="magnify" size={20} color={DS.text.muted} style={s.searchIcon} />
+      <View style={styles.searchRow}>
+        <MaterialCommunityIcons name="magnify" size={20} color={ds.text.muted} style={styles.searchIcon} />
         <TextInput
-          style={s.searchInput}
+          style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
           placeholder="Search transactions…"
-          placeholderTextColor={DS.text.muted}
-          selectionColor={DS.primary}
+          placeholderTextColor={ds.text.muted}
+          selectionColor={ds.primary}
           returnKeyType="search"
           clearButtonMode="while-editing"
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <MaterialCommunityIcons name="close-circle" size={18} color={DS.text.muted} />
+            <MaterialCommunityIcons name="close-circle" size={18} color={ds.text.muted} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {(['all', 'income', 'expense'] as TypeFilter[]).map((f) => {
           const active = typeFilter === f;
-          const chipColor = f === 'income' ? DS.primary : f === 'expense' ? DS.secondary : DS.text.secondary;
+          const chipColor = f === 'income' ? ds.primary : f === 'expense' ? ds.secondary : ds.text.secondary;
           const label = f === 'all' ? 'All' : f === 'income' ? 'Income' : 'Expenses';
           return (
             <TouchableOpacity
               key={f}
               style={[
-                s.chip,
+                styles.chip,
                 active
                   ? { backgroundColor: hexToRgba(chipColor, 0.18), borderColor: chipColor }
-                  : { borderColor: DS.border.subtle },
+                  : { borderColor: ds.border.subtle },
               ]}
               onPress={() => setTypeFilter(f)}
               activeOpacity={0.75}
@@ -453,10 +415,10 @@ export default function HistoryScreen() {
                 <MaterialCommunityIcons
                   name={f === 'income' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
                   size={14}
-                  color={active ? chipColor : DS.text.muted}
+                  color={active ? chipColor : ds.text.muted}
                 />
               )}
-              <Text style={[s.chipText, active && { color: chipColor }]}>{label}</Text>
+              <Text style={[styles.chipText, active && { color: chipColor }]}>{label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -469,8 +431,8 @@ export default function HistoryScreen() {
   const ListFooter = (
     <View>
       {isFetchingMore && (
-        <View style={s.loadingMore}>
-          <ActivityIndicator size="small" color={DS.primary} />
+        <View style={styles.loadingMore}>
+          <ActivityIndicator size="small" color={ds.primary} />
         </View>
       )}
       {!hasMore && items.length > 0 && (
@@ -481,6 +443,8 @@ export default function HistoryScreen() {
           year={year}
           month={month}
           currencySymbol={currencySymbol}
+          ds={ds}
+          styles={styles}
         />
       )}
       <View style={{ height: insets.bottom + 80 }} />
@@ -500,26 +464,26 @@ export default function HistoryScreen() {
       }
     />
   ) : (
-    <View style={s.loadingCenter}>
-      <ActivityIndicator size="large" color={DS.primary} />
+    <View style={styles.loadingCenter}>
+      <ActivityIndicator size="large" color={ds.primary} />
     </View>
   );
 
   // ── Screen ────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Top bar */}
-      <View style={s.topBar}>
-        <Text style={s.title}>History</Text>
+      <View style={styles.topBar}>
+        <Text style={styles.title}>History</Text>
         <TouchableOpacity
-          style={s.monthBtn}
+          style={styles.monthBtn}
           onPress={() => setMonthPickerOpen(true)}
           activeOpacity={0.75}
         >
-          <MaterialCommunityIcons name="calendar-month-outline" size={16} color={DS.primaryLight} />
-          <Text style={s.monthBtnText}>{MONTH_NAMES[month - 1]} {year}</Text>
-          <MaterialCommunityIcons name="chevron-down" size={16} color={DS.primaryLight} />
+          <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
+          <Text style={styles.monthBtnText}>{MONTH_NAMES[month - 1]} {year}</Text>
+          <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
         </TouchableOpacity>
       </View>
 
@@ -537,8 +501,8 @@ export default function HistoryScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={() => triggerLoad(year, month, typeFilter, debSearch)}
-            tintColor={DS.primary}
-            colors={[DS.primary]}
+            tintColor={ds.primary}
+            colors={[ds.primary]}
           />
         }
         contentContainerStyle={items.length === 0 && !isLoading ? { flex: 1 } : undefined}
@@ -553,6 +517,8 @@ export default function HistoryScreen() {
         year={year}
         month={month}
         onChange={handleMonthChange}
+        ds={ds}
+        styles={styles}
       />
     </View>
   );
@@ -560,97 +526,142 @@ export default function HistoryScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
 
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  title: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24, lineHeight: 32, letterSpacing: -0.48,
-    color: DS.text.primary,
-  },
-  monthBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: DS.radius.full,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    borderWidth: 1,
-    borderColor: hexToRgba(DS.primary, 0.3),
-  },
-  monthBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13, lineHeight: 18,
-    color: DS.primaryLight,
-  },
+    // Top bar
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    title: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 24, lineHeight: 32, letterSpacing: -0.48,
+      color: ds.text.primary,
+    },
+    monthBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba(ds.primary, 0.3),
+    },
+    monthBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13, lineHeight: 18,
+      color: ds.primaryLight,
+    },
 
-  // List header (search + chips)
-  listHeader: { paddingTop: 12, paddingBottom: 4 },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    paddingHorizontal: 12,
-    height: 44,
-    borderRadius: DS.radius.lg,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    marginBottom: 12,
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15, lineHeight: 20,
-    color: DS.text.primary,
-    padding: 0,
-  },
+    // List header (search + chips)
+    listHeader: { paddingTop: 12, paddingBottom: 4 },
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      paddingHorizontal: 12,
+      height: 44,
+      borderRadius: ds.radius.lg,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      marginBottom: 12,
+    },
+    searchIcon: { marginRight: 8 },
+    searchInput: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15, lineHeight: 20,
+      color: ds.text.primary,
+      padding: 0,
+    },
 
-  // Filter chips
-  chips: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: DS.radius.full,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1.5,
-  },
-  chipText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13, lineHeight: 18,
-    color: DS.text.muted,
-  },
+    // Filter chips
+    chips: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: ds.radius.full,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1.5,
+    },
+    chipText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13, lineHeight: 18,
+      color: ds.text.muted,
+    },
 
-  // Date group header
-  dateHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 6,
-  },
-  dateHeaderText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
+    // Date group header
+    dateHeader: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 6,
+    },
+    dateHeaderText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
 
-  // Loading states
-  loadingMore: { paddingVertical: 20, alignItems: 'center' },
-  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-});
+    // Loading states
+    loadingMore: { paddingVertical: 20, alignItems: 'center' },
+    loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+
+    // Month picker sheet (formerly `ps`)
+    pickerBody: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 8 },
+    pickerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    pickerArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    pickerLabel: {
+      flex: 1, textAlign: 'center',
+      fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28,
+      letterSpacing: -0.44, color: ds.text.primary,
+    },
+    pickerConfirmBtn: {
+      height: 52, borderRadius: ds.radius.md, backgroundColor: ds.primary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    pickerConfirmText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: '#fff',
+    },
+
+    // Summary bar (formerly `sb`)
+    summaryContainer: {
+      margin: 16,
+      padding: 16,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    summaryPeriod: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+      letterSpacing: 0.6, textTransform: 'uppercase', color: ds.text.muted,
+      marginBottom: 12,
+    },
+    summaryRow: { flexDirection: 'row', alignItems: 'center' },
+    summaryStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    summaryDot: { width: 8, height: 8, borderRadius: 4 },
+    summaryStatLabel: {
+      fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: ds.text.muted,
+      marginBottom: 2,
+    },
+    summaryStatValue: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+    },
+    summaryDivider: { width: 1, height: 36, backgroundColor: ds.border.subtle, marginHorizontal: 8 },
+  });
+}

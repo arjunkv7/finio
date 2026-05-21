@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Modal,
   View,
@@ -9,7 +9,9 @@ import {
   TouchableWithoutFeedback,
   Platform,
 } from 'react-native';
-import { DS, Typography } from '../constants';
+import { DS_DARK, DSType } from '../constants/colors';
+import { Typography } from '../constants';
+import { useDS } from '../hooks/useDS';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -20,12 +22,57 @@ interface BottomSheetProps {
   title?: string;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.72)',
+    },
+    sheet: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: ds.surface.card,
+      borderTopLeftRadius: ds.radius.xl,
+      borderTopRightRadius: ds.radius.xl,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+      ...ds.shadow.modal,
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      backgroundColor: ds === DS_DARK ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginTop: 12,
+      marginBottom: 4,
+    },
+    header: {
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    title: {
+      ...Typography.headlineMd,
+      color: ds.text.primary,
+    },
+  });
+}
+
 export default function BottomSheet({
   visible,
   onClose,
   children,
   title,
 }: BottomSheetProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -91,44 +138,3 @@ export default function BottomSheet({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: DS.surface.card,
-    borderTopLeftRadius: DS.radius.xl,
-    borderTopRightRadius: DS.radius.xl,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-    ...DS.shadow.modal,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  title: {
-    ...Typography.headlineMd,
-    color: DS.text.primary,
-  },
-});

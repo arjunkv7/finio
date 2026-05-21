@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleProp, ViewStyle, StyleSheet } from 'react-native';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 
 interface AppCardProps {
   children: React.ReactNode;
@@ -9,12 +10,27 @@ interface AppCardProps {
   padding?: number;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      ...ds.shadow.card,
+    },
+  });
+}
+
 export default function AppCard({
   children,
   style,
   accentColor,
   padding = 16,
 }: AppCardProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   return (
     <View
       style={[
@@ -22,10 +38,10 @@ export default function AppCard({
         accentColor != null && {
           borderLeftColor: accentColor,
           borderLeftWidth: 3,
-          borderRadius: DS.radius.xl,
+          borderRadius: ds.radius.xl,
           // Override left radius to keep accent flush
-          borderTopLeftRadius: DS.radius.md,
-          borderBottomLeftRadius: DS.radius.md,
+          borderTopLeftRadius: ds.radius.md,
+          borderBottomLeftRadius: ds.radius.md,
         },
         { padding },
         style,
@@ -35,13 +51,3 @@ export default function AppCard({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    ...DS.shadow.card,
-  },
-});

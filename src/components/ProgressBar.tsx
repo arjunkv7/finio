@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 
 interface ProgressBarProps {
   value: number;
@@ -11,6 +12,33 @@ interface ProgressBarProps {
   label?: string;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    track: {
+      backgroundColor: ds.surface.elevated,
+      overflow: 'hidden',
+    },
+    fill: {},
+    meta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    label: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.secondary,
+    },
+    percent: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+  });
+}
+
 export default function ProgressBar({
   value,
   max,
@@ -19,6 +47,8 @@ export default function ProgressBar({
   showPercent = false,
   label,
 }: ProgressBarProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
 
   return (
@@ -48,28 +78,3 @@ export default function ProgressBar({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  track: {
-    backgroundColor: DS.surface.elevated,
-    overflow: 'hidden',
-  },
-  fill: {},
-  meta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  label: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.text.secondary,
-  },
-  percent: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-});

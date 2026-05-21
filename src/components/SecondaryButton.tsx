@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -8,7 +8,8 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 
 interface SecondaryButtonProps {
   label: string;
@@ -19,6 +20,35 @@ interface SecondaryButtonProps {
   style?: ViewStyle;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    button: {
+      backgroundColor: 'transparent',
+      borderRadius: ds.radius.md,
+      borderWidth: 1.5,
+      borderColor: ds.border.medium,
+      height: 52,
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    label: {
+      color: ds.text.primary,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      letterSpacing: 0.14,
+    },
+    dimmed: {
+      opacity: 0.45,
+    },
+  });
+}
+
 export default function SecondaryButton({
   label,
   onPress,
@@ -27,6 +57,8 @@ export default function SecondaryButton({
   icon,
   style,
 }: SecondaryButtonProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const inactive = loading || disabled;
 
   return (
@@ -37,11 +69,11 @@ export default function SecondaryButton({
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={DS.text.primary} size="small" />
+        <ActivityIndicator color={ds.text.primary} size="small" />
       ) : (
         <View style={styles.inner}>
           {icon != null && (
-            <MaterialCommunityIcons name={icon} size={18} color={DS.text.primary} />
+            <MaterialCommunityIcons name={icon} size={18} color={ds.text.primary} />
           )}
           <Text style={styles.label}>{label}</Text>
         </View>
@@ -49,30 +81,3 @@ export default function SecondaryButton({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: 'transparent',
-    borderRadius: DS.radius.md,
-    borderWidth: 1.5,
-    borderColor: DS.border.medium,
-    height: 52,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  label: {
-    color: DS.text.primary,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    letterSpacing: 0.14,
-  },
-  dimmed: {
-    opacity: 0.45,
-  },
-});

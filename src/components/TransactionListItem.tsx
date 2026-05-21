@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
 import { hexToRgba } from '../utils/color';
+import { useDS } from '../hooks/useDS';
 import AmountText from './AmountText';
 
 type TxType = 'income' | 'expense' | 'transfer';
@@ -22,6 +23,59 @@ interface TransactionListItemProps {
 
 const ROW_HEIGHT = 72;
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.screen,
+      paddingHorizontal: 20,
+      height: ROW_HEIGHT,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: ds.border.subtle,
+    },
+    iconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    info: {
+      flex: 1,
+      gap: 4,
+    },
+    name: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 16,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    meta: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 16,
+      color: ds.text.muted,
+    },
+    actions: {
+      flexDirection: 'row',
+    },
+    actionBtn: {
+      width: 68,
+      height: ROW_HEIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editBtn: {
+      backgroundColor: ds.tertiary,
+    },
+    deleteBtn: {
+      backgroundColor: ds.secondary,
+    },
+  });
+}
+
 export default function TransactionListItem({
   icon,
   iconColor,
@@ -33,6 +87,8 @@ export default function TransactionListItem({
   onEdit,
   onDelete,
 }: TransactionListItemProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const swipeRef = useRef<Swipeable>(null);
 
   const renderRightActions = (
@@ -117,54 +173,3 @@ export default function TransactionListItem({
     </Swipeable>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.screen,
-    paddingHorizontal: 20,
-    height: ROW_HEIGHT,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DS.border.subtle,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: {
-    flex: 1,
-    gap: 4,
-  },
-  name: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 16,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  meta: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 16,
-    color: DS.text.muted,
-  },
-  actions: {
-    flexDirection: 'row',
-  },
-  actionBtn: {
-    width: 68,
-    height: ROW_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editBtn: {
-    backgroundColor: DS.tertiary,
-  },
-  deleteBtn: {
-    backgroundColor: DS.secondary,
-  },
-});

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useAccountsStore } from '../store/accountsStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -22,16 +23,6 @@ import { AccountType, AccountsStackParamList } from '../types';
 import AppHeader from '../components/AppHeader';
 
 type Nav = StackNavigationProp<AccountsStackParamList, 'AddAccount'>;
-
-// ── Account type options ──────────────────────────────────────────────────────
-
-const ACCOUNT_TYPES: { type: AccountType; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; label: string; color: string }[] = [
-  { type: 'bank',   icon: 'bank',           label: 'Bank',        color: DS.primary },
-  { type: 'cash',   icon: 'cash',           label: 'Cash',        color: DS.primaryLight },
-  { type: 'wallet', icon: 'wallet',         label: 'Wallet',      color: DS.tertiary },
-  { type: 'credit', icon: 'credit-card',    label: 'Credit Card', color: DS.secondary },
-  { type: 'other',  icon: 'shape-outline',  label: 'Other',       color: DS.purple },
-];
 
 // ── Preset brand colors ───────────────────────────────────────────────────────
 
@@ -46,16 +37,234 @@ const PRESET_COLORS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function SectionLabel({ label }: { label: string }) {
-  return <Text style={s.sectionLabel}>{label}</Text>;
+function SectionLabel({ label, styles }: { label: string; styles: ReturnType<typeof makeStyles> }) {
+  return <Text style={styles.sectionLabel}>{label}</Text>;
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: ds.surface.screen,
+    },
+    scroll: { flex: 1 },
+    scrollContent: { padding: 20, gap: 8, paddingBottom: 32 },
+
+    sectionLabel: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    fieldHint: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      marginBottom: 8,
+      marginTop: -4,
+    },
+
+    // Text input
+    inputWrap: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      height: 52,
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    inputError: { borderColor: ds.secondary },
+    textInput: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 16,
+      lineHeight: 22,
+      color: ds.text.primary,
+    },
+    errorText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+      marginBottom: 4,
+    },
+
+    // Type chips
+    typeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 4,
+    },
+    typeChip: {
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: ds.radius.lg,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1.5,
+      borderColor: ds.border.subtle,
+      minWidth: 80,
+    },
+    typeChipIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    typeChipLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+      textAlign: 'center',
+    },
+
+    // Color swatches
+    colorRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 4,
+    },
+    colorSwatch: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    colorSwatchSelected: {
+      borderWidth: 3,
+      borderColor: '#fff',
+    },
+
+    // Balance input
+    balanceInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      overflow: 'hidden',
+      height: 56,
+      marginBottom: 4,
+    },
+    currencyPill: {
+      paddingHorizontal: 16,
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: ds.surface.highest,
+      borderRightWidth: 1,
+      borderRightColor: ds.border.subtle,
+    },
+    currencyText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 18,
+      color: ds.text.secondary,
+    },
+    balanceInput: {
+      flex: 1,
+      paddingHorizontal: 16,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 20,
+      lineHeight: 26,
+      color: ds.text.primary,
+    },
+
+    // Preview card
+    previewCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 16,
+      marginTop: 12,
+    },
+    previewIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    previewName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: ds.text.primary,
+    },
+    previewType: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    previewBalance: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 18,
+      lineHeight: 24,
+      color: ds.text.primary,
+    },
+
+    // Footer / save button
+    footer: {
+      padding: 20,
+      paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+      borderTopWidth: 1,
+      borderTopColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    saveBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: ds.primary,
+      borderRadius: ds.radius.md,
+      height: 52,
+    },
+    saveBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: '#fff',
+    },
+  });
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function AddAccountScreen() {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
   const navigation = useNavigation<Nav>();
   const { addAccount } = useAccountsStore();
   const { currencySymbol } = useSettingsStore();
+
+  // ── Account type options (depends on ds) ─────────────────────────────────
+  const ACCOUNT_TYPES: { type: AccountType; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; label: string; color: string }[] = [
+    { type: 'bank',   icon: 'bank',           label: 'Bank',        color: ds.primary },
+    { type: 'cash',   icon: 'cash',           label: 'Cash',        color: ds.primaryLight },
+    { type: 'wallet', icon: 'wallet',         label: 'Wallet',      color: ds.tertiary },
+    { type: 'credit', icon: 'credit-card',    label: 'Credit Card', color: ds.secondary },
+    { type: 'other',  icon: 'shape-outline',  label: 'Other',       color: ds.purple },
+  ];
 
   const [name, setName]             = useState('');
   const [type, setType]             = useState<AccountType>('bank');
@@ -116,15 +325,15 @@ export default function AddAccountScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Account Name ── */}
-        <SectionLabel label="Account Name" />
+        <SectionLabel label="Account Name" styles={s} />
         <View style={[s.inputWrap, nameError ? s.inputError : null]}>
           <TextInput
             style={s.textInput}
             value={name}
             onChangeText={(v) => { setName(v); if (nameError) setNameError(''); }}
             placeholder="e.g. HDFC Savings, Cash Wallet"
-            placeholderTextColor={DS.text.muted}
-            selectionColor={DS.primary}
+            placeholderTextColor={ds.text.muted}
+            selectionColor={ds.primary}
             autoCapitalize="words"
             returnKeyType="next"
           />
@@ -132,7 +341,7 @@ export default function AddAccountScreen() {
         {nameError ? <Text style={s.errorText}>{nameError}</Text> : null}
 
         {/* ── Account Type ── */}
-        <SectionLabel label="Account Type" />
+        <SectionLabel label="Account Type" styles={s} />
         <View style={s.typeRow}>
           {ACCOUNT_TYPES.map(({ type: t, icon, label, color: tColor }) => {
             const selected = type === t;
@@ -147,7 +356,7 @@ export default function AddAccountScreen() {
                 activeOpacity={0.75}
               >
                 <View style={[s.typeChipIcon, { backgroundColor: hexToRgba(tColor, selected ? 0.25 : 0.1) }]}>
-                  <MaterialCommunityIcons name={icon} size={20} color={selected ? tColor : DS.text.muted} />
+                  <MaterialCommunityIcons name={icon} size={20} color={selected ? tColor : ds.text.muted} />
                 </View>
                 <Text style={[s.typeChipLabel, selected && { color: tColor }]}>{label}</Text>
               </TouchableOpacity>
@@ -156,7 +365,7 @@ export default function AddAccountScreen() {
         </View>
 
         {/* ── Brand Color ── */}
-        <SectionLabel label="Brand Color" />
+        <SectionLabel label="Brand Color" styles={s} />
         <View style={s.colorRow}>
           {PRESET_COLORS.map((c) => {
             const selected = color === c;
@@ -176,7 +385,7 @@ export default function AddAccountScreen() {
         </View>
 
         {/* ── Opening Balance ── */}
-        <SectionLabel label="Opening Balance" />
+        <SectionLabel label="Opening Balance" styles={s} />
         <Text style={s.fieldHint}>Enter the current balance of this account. Leave blank for 0.</Text>
         <View style={[s.balanceInputRow, balanceError ? s.inputError : null]}>
           <View style={s.currencyPill}>
@@ -187,9 +396,9 @@ export default function AddAccountScreen() {
             value={balance}
             onChangeText={(v) => { setBalance(v); if (balanceError) setBalanceError(''); }}
             placeholder="0.00"
-            placeholderTextColor={DS.text.muted}
+            placeholderTextColor={ds.text.muted}
             keyboardType="decimal-pad"
-            selectionColor={DS.primary}
+            selectionColor={ds.primary}
             returnKeyType="done"
           />
         </View>
@@ -235,205 +444,3 @@ export default function AddAccountScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: DS.surface.screen,
-  },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20, gap: 8, paddingBottom: 32 },
-
-  sectionLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  fieldHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    marginBottom: 8,
-    marginTop: -4,
-  },
-
-  // Text input
-  inputWrap: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    height: 52,
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  inputError: { borderColor: DS.secondary },
-  textInput: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    lineHeight: 22,
-    color: DS.text.primary,
-  },
-  errorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-    marginBottom: 4,
-  },
-
-  // Type chips
-  typeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 4,
-  },
-  typeChip: {
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: DS.radius.lg,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1.5,
-    borderColor: DS.border.subtle,
-    minWidth: 80,
-  },
-  typeChipIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typeChipLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.text.muted,
-    textAlign: 'center',
-  },
-
-  // Color swatches
-  colorRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 4,
-  },
-  colorSwatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorSwatchSelected: {
-    borderWidth: 3,
-    borderColor: '#fff',
-  },
-
-  // Balance input
-  balanceInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    overflow: 'hidden',
-    height: 56,
-    marginBottom: 4,
-  },
-  currencyPill: {
-    paddingHorizontal: 16,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: DS.surface.highest,
-    borderRightWidth: 1,
-    borderRightColor: DS.border.subtle,
-  },
-  currencyText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 18,
-    color: DS.text.secondary,
-  },
-  balanceInput: {
-    flex: 1,
-    paddingHorizontal: 16,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 20,
-    lineHeight: 26,
-    color: DS.text.primary,
-  },
-
-  // Preview card
-  previewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 16,
-    marginTop: 12,
-  },
-  previewIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: DS.text.primary,
-  },
-  previewType: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-  previewBalance: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 18,
-    lineHeight: 24,
-    color: DS.text.primary,
-  },
-
-  // Footer / save button
-  footer: {
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    borderTopWidth: 1,
-    borderTopColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: DS.primary,
-    borderRadius: DS.radius.md,
-    height: 52,
-  },
-  saveBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#fff',
-  },
-});

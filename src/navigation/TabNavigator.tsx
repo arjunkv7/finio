@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
 import { RootTabParamList } from '../types';
+import { useDS } from '../hooks/useDS';
 import {
   HomeScreen,
   ReportsScreen,
@@ -28,20 +28,22 @@ const TAB_ICONS: Record<keyof RootTabParamList, { active: IconName; inactive: Ic
 };
 
 export default function TabNavigator() {
+  const ds = useDS();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: DS.surface.card,
-          borderTopColor: DS.border.subtle,
+          backgroundColor: ds.surface.card,
+          borderTopColor: ds.border.subtle,
           borderTopWidth: 1,
           height: 60,
           paddingBottom: 8,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: DS.primary,
-        tabBarInactiveTintColor: DS.text.muted,
+        tabBarActiveTintColor: ds.primary,
+        tabBarInactiveTintColor: ds.text.muted,
         tabBarLabelStyle: {
           fontFamily: 'Inter_500Medium',
           fontSize: 11,

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
 import { hexToRgba } from '../utils/color';
+import { useDS } from '../hooks/useDS';
 
 type BadgeSize = 'sm' | 'md';
 
@@ -13,12 +14,31 @@ interface CategoryBadgeProps {
   size?: BadgeSize;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: ds.radius.full,
+      gap: 4,
+      alignSelf: 'flex-start',
+    },
+    label: {
+      fontFamily: 'Inter_600SemiBold',
+      letterSpacing: 0.3,
+    },
+  });
+}
+
 export default function CategoryBadge({
   icon,
   label,
   color,
   size = 'md',
 }: CategoryBadgeProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   const isSm = size === 'sm';
   const iconSize = isSm ? 12 : 16;
   const fontSize = isSm ? 11 : 13;
@@ -45,17 +65,3 @@ export default function CategoryBadge({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: DS.radius.full,
-    gap: 4,
-    alignSelf: 'flex-start',
-  },
-  label: {
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 0.3,
-  },
-});

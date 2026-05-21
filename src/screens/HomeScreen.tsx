@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { formatRelativeDate } from '../utils/formatters';
 import { useAccountsStore, AccountWithBalance } from '../store/accountsStore';
@@ -27,14 +28,6 @@ import AmountText from '../components/AmountText';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const ACCOUNT_META: Record<string, { icon: string; color: string; label: string }> = {
-  bank:   { icon: 'bank',              color: DS.primary,      label: 'Bank' },
-  cash:   { icon: 'cash',              color: DS.primaryLight, label: 'Cash' },
-  wallet: { icon: 'wallet',            color: DS.tertiary,     label: 'Wallet' },
-  credit: { icon: 'credit-card',       color: DS.secondary,    label: 'Credit Card' },
-  other:  { icon: 'shape-outline',     color: DS.purple,       label: 'Other' },
-};
-
 // Donut ring geometry
 const D_SIZE   = 136;
 const D_STROKE = 13;
@@ -45,11 +38,11 @@ const D_CIRC   = 2 * Math.PI * D_R;
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function SavingsRing({ rate }: { rate: number }) {
+function SavingsRing({ rate, ds, styles }: { rate: number; ds: DSType; styles: ReturnType<typeof makeStyles> }) {
   const clamped  = Math.max(0, Math.min(100, rate));
   const visible  = D_CIRC * (clamped / 100);
   const hidden   = D_CIRC - visible;
-  const color    = clamped >= 20 ? DS.primary : clamped > 0 ? DS.tertiary : DS.surface.elevated;
+  const color    = clamped >= 20 ? ds.primary : clamped > 0 ? ds.tertiary : ds.surface.elevated;
 
   return (
     <View style={styles.ringWrap}>
@@ -57,7 +50,7 @@ function SavingsRing({ rate }: { rate: number }) {
         {/* Track */}
         <Circle
           cx={D_CX} cy={D_CY} r={D_R}
-          stroke={DS.surface.elevated}
+          stroke={ds.surface.elevated}
           strokeWidth={D_STROKE}
           fill="none"
         />
@@ -86,10 +79,22 @@ function SavingsRing({ rate }: { rate: number }) {
 function AccountCard({
   account,
   currencySymbol,
+  ds,
+  styles,
 }: {
   account: AccountWithBalance;
   currencySymbol: string;
+  ds: DSType;
+  styles: ReturnType<typeof makeStyles>;
 }) {
+  const ACCOUNT_META = {
+    bank:   { icon: 'bank',              color: ds.primary,      label: 'Bank' },
+    cash:   { icon: 'cash',              color: ds.primaryLight, label: 'Cash' },
+    wallet: { icon: 'wallet',            color: ds.tertiary,     label: 'Wallet' },
+    credit: { icon: 'credit-card',       color: ds.secondary,    label: 'Credit Card' },
+    other:  { icon: 'shape-outline',     color: ds.purple,       label: 'Other' },
+  } as Record<string, { icon: string; color: string; label: string }>;
+
   const meta    = ACCOUNT_META[account.type] ?? ACCOUNT_META.other;
   const accentColor = account.color ?? meta.color;
   const bal     = account.balance;
@@ -116,7 +121,7 @@ function AccountCard({
       {/* Name */}
       <Text style={styles.acctName} numberOfLines={1}>{account.name}</Text>
       {/* Balance */}
-      <Text style={[styles.acctBal, bal < 0 && { color: DS.secondaryLight }]}>
+      <Text style={[styles.acctBal, bal < 0 && { color: ds.secondaryLight }]}>
         {bal < 0 ? '−' : ''}{currencySymbol}
         {formatted}
       </Text>
@@ -127,6 +132,8 @@ function AccountCard({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  const ds             = useDS();
+  const styles         = useMemo(() => makeStyles(ds), [ds]);
   const navigation     = useNavigation<any>();
   const insets         = useSafeAreaInsets();
   const { currencySymbol } = useSettingsStore();
@@ -186,7 +193,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.appName}>Finio</Text>
         <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="bell-outline" size={22} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="bell-outline" size={22} color={ds.text.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -198,8 +205,8 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={load}
-            tintColor={DS.primary}
-            colors={[DS.primary]}
+            tintColor={ds.primary}
+            colors={[ds.primary]}
           />
         }
       >
@@ -207,7 +214,7 @@ export default function HomeScreen() {
         {/* ── Month Navigator ── */}
         <View style={styles.monthNav}>
           <TouchableOpacity onPress={goPrev} style={styles.monthArrow} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <MaterialCommunityIcons name="chevron-left" size={22} color={DS.text.secondary} />
+            <MaterialCommunityIcons name="chevron-left" size={22} color={ds.text.secondary} />
           </TouchableOpacity>
           <Text style={styles.monthLabel}>
             {MONTHS[activeMonth.month - 1]} {activeMonth.year}
@@ -221,7 +228,7 @@ export default function HomeScreen() {
             <MaterialCommunityIcons
               name="chevron-right"
               size={22}
-              color={isCurrentMonth ? DS.surface.elevated : DS.text.secondary}
+              color={isCurrentMonth ? ds.surface.elevated : ds.text.secondary}
             />
           </TouchableOpacity>
         </View>
@@ -229,19 +236,19 @@ export default function HomeScreen() {
         {/* ── Net Balance Hero ── */}
         <AppCard padding={22} style={styles.heroCard}>
           <Text style={styles.heroEyebrow}>Total Balance</Text>
-          <Text style={[styles.heroAmount, totalBalance < 0 && { color: DS.secondaryLight }]}>
+          <Text style={[styles.heroAmount, totalBalance < 0 && { color: ds.secondaryLight }]}>
             {totalBalance < 0 ? '−' : ''}{currencySymbol}{formatBal(totalBalance)}
           </Text>
 
           <View style={styles.heroStatsRow}>
             {/* Income */}
             <View style={styles.heroStat}>
-              <View style={[styles.heroStatIcon, { backgroundColor: hexToRgba(DS.primary, 0.15) }]}>
-                <MaterialCommunityIcons name="arrow-down-circle" size={16} color={DS.primaryLight} />
+              <View style={[styles.heroStatIcon, { backgroundColor: hexToRgba(ds.primary, 0.15) }]}>
+                <MaterialCommunityIcons name="arrow-down-circle" size={16} color={ds.primaryLight} />
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Income</Text>
-                <Text style={[styles.heroStatValue, { color: DS.primaryLight }]}>
+                <Text style={[styles.heroStatValue, { color: ds.primaryLight }]}>
                   {currencySymbol}{formatBal(monthlySummary.income)}
                 </Text>
               </View>
@@ -251,12 +258,12 @@ export default function HomeScreen() {
 
             {/* Expenses */}
             <View style={styles.heroStat}>
-              <View style={[styles.heroStatIcon, { backgroundColor: hexToRgba(DS.secondary, 0.15) }]}>
-                <MaterialCommunityIcons name="arrow-up-circle" size={16} color={DS.secondaryLight} />
+              <View style={[styles.heroStatIcon, { backgroundColor: hexToRgba(ds.secondary, 0.15) }]}>
+                <MaterialCommunityIcons name="arrow-up-circle" size={16} color={ds.secondaryLight} />
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Expenses</Text>
-                <Text style={[styles.heroStatValue, { color: DS.secondaryLight }]}>
+                <Text style={[styles.heroStatValue, { color: ds.secondaryLight }]}>
                   {currencySymbol}{formatBal(monthlySummary.expenses)}
                 </Text>
               </View>
@@ -268,15 +275,15 @@ export default function HomeScreen() {
         <AppCard padding={20} style={styles.savingsCard}>
           <Text style={styles.sectionTitle}>Savings Overview</Text>
           <View style={styles.savingsBody}>
-            <SavingsRing rate={savingsRate} />
+            <SavingsRing rate={savingsRate} ds={ds} styles={styles} />
             <View style={styles.savingsLegend}>
               {[
-                { label: 'Income',   value: monthlySummary.income,   color: DS.primaryLight },
-                { label: 'Expenses', value: monthlySummary.expenses, color: DS.secondaryLight },
+                { label: 'Income',   value: monthlySummary.income,   color: ds.primaryLight },
+                { label: 'Expenses', value: monthlySummary.expenses, color: ds.secondaryLight },
                 {
                   label: 'Net',
                   value: monthlySummary.net,
-                  color: monthlySummary.net >= 0 ? DS.tertiaryLight : DS.secondaryLight,
+                  color: monthlySummary.net >= 0 ? ds.tertiaryLight : ds.secondaryLight,
                 },
               ].map(({ label, value, color }) => (
                 <View key={label} style={styles.legendRow}>
@@ -312,7 +319,7 @@ export default function HomeScreen() {
               contentContainerStyle={styles.acctScroll}
             >
               {activeAccounts.map(acc => (
-                <AccountCard key={acc.id} account={acc} currencySymbol={currencySymbol} />
+                <AccountCard key={acc.id} account={acc} currencySymbol={currencySymbol} ds={ds} styles={styles} />
               ))}
             </ScrollView>
           </View>
@@ -322,38 +329,38 @@ export default function HomeScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionBtn, {
-              backgroundColor: hexToRgba(DS.secondary, 0.12),
-              borderColor: hexToRgba(DS.secondary, 0.35),
+              backgroundColor: hexToRgba(ds.secondary, 0.12),
+              borderColor: hexToRgba(ds.secondary, 0.35),
             }]}
             onPress={() => navigation.navigate('AddTransaction', { defaultType: 'expense' })}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="arrow-up-circle-outline" size={22} color={DS.secondaryLight} />
-            <Text style={[styles.actionLabel, { color: DS.secondaryLight }]}>Expense</Text>
+            <MaterialCommunityIcons name="arrow-up-circle-outline" size={22} color={ds.secondaryLight} />
+            <Text style={[styles.actionLabel, { color: ds.secondaryLight }]}>Expense</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, {
-              backgroundColor: hexToRgba(DS.primary, 0.12),
-              borderColor: hexToRgba(DS.primary, 0.35),
+              backgroundColor: hexToRgba(ds.primary, 0.12),
+              borderColor: hexToRgba(ds.primary, 0.35),
             }]}
             onPress={() => navigation.navigate('AddTransaction', { defaultType: 'income' })}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="arrow-down-circle-outline" size={22} color={DS.primaryLight} />
-            <Text style={[styles.actionLabel, { color: DS.primaryLight }]}>Income</Text>
+            <MaterialCommunityIcons name="arrow-down-circle-outline" size={22} color={ds.primaryLight} />
+            <Text style={[styles.actionLabel, { color: ds.primaryLight }]}>Income</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, {
-              backgroundColor: hexToRgba(DS.tertiary, 0.12),
-              borderColor: hexToRgba(DS.tertiary, 0.35),
+              backgroundColor: hexToRgba(ds.tertiary, 0.12),
+              borderColor: hexToRgba(ds.tertiary, 0.35),
             }]}
             onPress={() => navigation.navigate('Accounts')}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons name="swap-horizontal" size={22} color={DS.tertiaryLight} />
-            <Text style={[styles.actionLabel, { color: DS.tertiaryLight }]}>Transfer</Text>
+            <MaterialCommunityIcons name="swap-horizontal" size={22} color={ds.tertiaryLight} />
+            <Text style={[styles.actionLabel, { color: ds.tertiaryLight }]}>Transfer</Text>
           </TouchableOpacity>
         </View>
 
@@ -368,7 +375,7 @@ export default function HomeScreen() {
         {recentTx.length === 0 ? (
           <AppCard padding={24}>
             <View style={styles.emptyBox}>
-              <MaterialCommunityIcons name="receipt-text-outline" size={32} color={DS.text.muted} />
+              <MaterialCommunityIcons name="receipt-text-outline" size={32} color={ds.text.muted} />
               <Text style={styles.emptyTitle}>No transactions yet</Text>
               <Text style={styles.emptyHint}>Tap Expense or Income above to get started</Text>
             </View>
@@ -378,7 +385,7 @@ export default function HomeScreen() {
             {recentTx.map((tx, i) => {
               const cat       = tx.category_id ? getCategoryById(tx.category_id) : null;
               const iconName  = (cat?.icon ?? 'cash') as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-              const iconColor = cat?.color ?? DS.text.muted;
+              const iconColor = cat?.color ?? ds.text.muted;
               const isLast    = i === recentTx.length - 1;
 
               return (
@@ -424,351 +431,353 @@ export default function HomeScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: DS.surface.screen,
-  },
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: ds.surface.screen,
+    },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  appName: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.8,
-    color: DS.text.primary,
-  },
-  bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    appName: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 26,
+      lineHeight: 32,
+      letterSpacing: -0.8,
+      color: ds.text.primary,
+    },
+    bellBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12, gap: 14 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 12, gap: 14 },
 
-  // Month navigator
-  monthNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 4,
-  },
-  monthArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-    minWidth: 110,
-    textAlign: 'center',
-  },
+    // Month navigator
+    monthNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      paddingVertical: 4,
+    },
+    monthArrow: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    monthLabel: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+      minWidth: 110,
+      textAlign: 'center',
+    },
 
-  // Hero card
-  heroCard: {},
-  heroEyebrow: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-    marginBottom: 6,
-  },
-  heroAmount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 38,
-    lineHeight: 46,
-    letterSpacing: -1.5,
-    color: DS.text.primary,
-    marginBottom: 18,
-  },
-  heroStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: DS.border.subtle,
-  },
-  heroStat: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  heroStatIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroStatLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    lineHeight: 14,
-    color: DS.text.muted,
-    marginBottom: 2,
-  },
-  heroStatValue: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  heroStatDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: DS.border.subtle,
-  },
+    // Hero card
+    heroCard: {},
+    heroEyebrow: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+      marginBottom: 6,
+    },
+    heroAmount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 38,
+      lineHeight: 46,
+      letterSpacing: -1.5,
+      color: ds.text.primary,
+      marginBottom: 18,
+    },
+    heroStatsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: ds.border.subtle,
+    },
+    heroStat: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    heroStatIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroStatLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.muted,
+      marginBottom: 2,
+    },
+    heroStatValue: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+    },
+    heroStatDivider: {
+      width: 1,
+      height: 36,
+      backgroundColor: ds.border.subtle,
+    },
 
-  // Savings card
-  savingsCard: {},
-  savingsBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginTop: 12,
-  },
-  // Ring
-  ringWrap: {
-    width: D_SIZE,
-    height: D_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringPct: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.5,
-  },
-  ringLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    lineHeight: 14,
-    color: DS.text.muted,
-  },
-  // Legend
-  savingsLegend: {
-    flex: 1,
-    gap: 10,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  legendLabel: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.secondary,
-  },
-  legendValue: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  rateBadge: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    borderRadius: DS.radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  rateBadgeText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    color: DS.primaryLight,
-  },
+    // Savings card
+    savingsCard: {},
+    savingsBody: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginTop: 12,
+    },
+    // Ring
+    ringWrap: {
+      width: D_SIZE,
+      height: D_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ringCenter: {
+      position: 'absolute',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ringPct: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.5,
+    },
+    ringLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.muted,
+    },
+    // Legend
+    savingsLegend: {
+      flex: 1,
+      gap: 10,
+    },
+    legendRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    legendDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    legendLabel: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.secondary,
+    },
+    legendValue: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    rateBadge: {
+      marginTop: 4,
+      alignSelf: 'flex-start',
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderRadius: ds.radius.full,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    rateBadgeText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.primaryLight,
+    },
 
-  // Section headers
-  sectionTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
-  rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: -4,
-  },
-  seeAll: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.primaryLight,
-  },
+    // Section headers
+    sectionTitle: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
+    rowHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: -4,
+    },
+    seeAll: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.primaryLight,
+    },
 
-  // Account cards
-  acctScroll: {
-    gap: 12,
-    paddingVertical: 2,
-  },
-  acctCard: {
-    width: 150,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    padding: 16,
-    gap: 8,
-    ...DS.shadow.card,
-  },
-  acctTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  acctIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: DS.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  acctType: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.2,
-  },
-  acctName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    lineHeight: 18,
-    color: DS.text.primary,
-  },
-  acctBal: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: DS.text.primary,
-    letterSpacing: -0.3,
-  },
+    // Account cards
+    acctScroll: {
+      gap: 12,
+      paddingVertical: 2,
+    },
+    acctCard: {
+      width: 150,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      padding: 16,
+      gap: 8,
+      ...ds.shadow.card,
+    },
+    acctTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    acctIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: ds.radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    acctType: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      lineHeight: 14,
+      letterSpacing: 0.2,
+    },
+    acctName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 18,
+      color: ds.text.primary,
+    },
+    acctBal: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: ds.text.primary,
+      letterSpacing: -0.3,
+    },
 
-  // Quick actions
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: DS.radius.lg,
-    borderWidth: 1.5,
-  },
-  actionLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-  },
+    // Quick actions
+    actions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    actionBtn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 14,
+      borderRadius: ds.radius.lg,
+      borderWidth: 1.5,
+    },
+    actionLabel: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
 
-  // Recent transactions
-  txCard: { overflow: 'hidden' },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  txIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txInfo: { flex: 1, gap: 3 },
-  txName: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  txMeta: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.text.muted,
-  },
-  txDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DS.border.subtle,
-    marginLeft: 68,
-  },
+    // Recent transactions
+    txCard: { overflow: 'hidden' },
+    txRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 12,
+    },
+    txIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txInfo: { flex: 1, gap: 3 },
+    txName: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    txMeta: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+    },
+    txDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: ds.border.subtle,
+      marginLeft: 68,
+    },
 
-  // Empty state
-  emptyBox: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  emptyTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: DS.text.secondary,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    textAlign: 'center',
-  },
+    // Empty state
+    emptyBox: {
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+    },
+    emptyTitle: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: ds.text.secondary,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      textAlign: 'center',
+    },
 
-  // FAB
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: DS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...DS.shadow.modal,
-  },
-});
+    // FAB
+    fab: {
+      position: 'absolute',
+      right: 20,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: ds.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...ds.shadow.modal,
+    },
+  });
+}

@@ -1,5 +1,5 @@
 // Design system tokens extracted from Stitch / Figma style guide
-export const DS = {
+export const DS_DARK = {
   surface: {
     base: '#0C0E12',      // surface-container-lowest — deepest bg
     screen: '#111317',    // background — screen fill
@@ -56,22 +56,83 @@ export const DS = {
   },
 } as const;
 
+export const DS_LIGHT = {
+  surface: {
+    base: '#EDF0F4',
+    screen: '#F5F7FA',
+    card: '#FFFFFF',
+    container: '#EDF0F4',
+    elevated: '#E4E8EE',
+    highest: '#D8DEE8',
+  },
+
+  primary: '#10B981',
+  primaryLight: '#059669',  // darker emerald for text on light bg
+  secondary: '#F43F5E',
+  secondaryLight: '#E11D48',
+  tertiary: '#F59E0B',
+  tertiaryLight: '#D97706',
+  purple: '#9C7EF0',
+
+  text: {
+    primary: '#111317',
+    secondary: '#374151',
+    muted: '#6B7482',
+  },
+
+  border: {
+    subtle: 'rgba(0,0,0,0.06)',
+    medium: 'rgba(0,0,0,0.15)',
+    strong: '#CBD5E1',
+  },
+
+  radius: {
+    sm: 4,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    full: 9999,
+  },
+
+  shadow: {
+    card: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    modal: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.15,
+      shadowRadius: 40,
+      elevation: 10,
+    },
+  },
+} as const;
+
+export type DSType = typeof DS_DARK;
+
+// Default export kept for App.tsx splash screen (shown before theme loads)
+export const DS = DS_DARK;
+
 // Backward-compatible alias used by existing shell code
 export const Colors = {
   background: {
-    primary: DS.surface.screen,
-    card: DS.surface.card,
-    elevated: DS.surface.container,
+    primary: DS_DARK.surface.screen,
+    card: DS_DARK.surface.card,
+    elevated: DS_DARK.surface.container,
   },
   accent: {
-    green: DS.primary,
-    red: DS.secondary,
-    amber: DS.tertiary,
-    purple: DS.purple,
+    green: DS_DARK.primary,
+    red: DS_DARK.secondary,
+    amber: DS_DARK.tertiary,
+    purple: DS_DARK.purple,
   },
   text: {
-    primary: DS.text.primary,
-    secondary: DS.text.secondary,
-    muted: DS.text.muted,
+    primary: DS_DARK.text.primary,
+    secondary: DS_DARK.text.secondary,
+    muted: DS_DARK.text.muted,
   },
 } as const;

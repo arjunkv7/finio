@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
-import { DS } from '../../constants';
+import { DSType } from '../../constants/colors';
 import { hexToRgba } from '../../utils/color';
+import { useDS } from '../../hooks/useDS';
 import { useTripsStore } from '../../store/tripsStore';
 import { useCategoriesStore } from '../../store/categoriesStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -30,7 +31,7 @@ type Route = RouteProp<TripsStackParamList, 'TripDetail'>;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const AVATAR_PALETTE = [
-  DS.primary, DS.secondary, DS.tertiary, DS.purple,
+  '#10B981', '#F43F5E', '#F59E0B', '#9C7EF0',
   '#3B82F6', '#EC4899', '#14B8A6', '#F97316',
 ];
 
@@ -69,7 +70,57 @@ interface AddParticipantSheetProps {
   onAdd: (name: string) => Promise<void>;
 }
 
+function makePsStyles(ds: DSType) {
+  return StyleSheet.create({
+    body: { padding: 20, gap: 12 },
+    inputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 12,
+      height: 50,
+      gap: 8,
+    },
+    inputIcon: {},
+    input: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      color: ds.text.primary,
+      padding: 0,
+    },
+    error: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+    },
+    btn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 52,
+      borderRadius: ds.radius.md,
+      backgroundColor: ds.primary,
+      gap: 8,
+      marginTop: 4,
+    },
+    btnText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: '#fff',
+    },
+  });
+}
+
 function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetProps) {
+  const ds = useDS();
+  const ps = useMemo(() => makePsStyles(ds), [ds]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -88,14 +139,14 @@ function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetPro
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={ps.body}>
           <View style={ps.inputWrap}>
-            <MaterialCommunityIcons name="account-outline" size={18} color={DS.text.muted} style={ps.inputIcon} />
+            <MaterialCommunityIcons name="account-outline" size={18} color={ds.text.muted} style={ps.inputIcon} />
             <TextInput
               style={ps.input}
               value={name}
               onChangeText={(v) => { setName(v); if (v.trim()) setError(''); }}
               placeholder="Participant name"
-              placeholderTextColor={DS.text.muted}
-              selectionColor={DS.primary}
+              placeholderTextColor={ds.text.muted}
+              selectionColor={ds.primary}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={handleAdd}
@@ -126,7 +177,64 @@ interface ExpenseRowProps {
   getCategoryName: (id: string | null) => { name: string; icon: string; color: string } | null;
 }
 
+function makeErStyles(ds: DSType) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: ds.border.subtle,
+    },
+    catIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: ds.radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    body: { flex: 1 },
+    desc: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+      marginBottom: 4,
+    },
+    meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    paidByChip: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+    },
+    paidByText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      color: ds.primaryLight,
+    },
+    splitLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+    },
+    amount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 22,
+      letterSpacing: -0.2,
+      color: ds.text.primary,
+    },
+  });
+}
+
 function ExpenseRow({ expense, participants, currencySymbol, getCategoryName }: ExpenseRowProps) {
+  const ds = useDS();
+  const er = useMemo(() => makeErStyles(ds), [ds]);
   const paidBy = participants.find((p) => p.id === expense.paid_by_participant_id);
   const cat = getCategoryName(expense.category_id);
   const amount = (expense.amount / 100).toLocaleString('en-IN', {
@@ -136,11 +244,11 @@ function ExpenseRow({ expense, participants, currencySymbol, getCategoryName }: 
 
   return (
     <View style={er.row}>
-      <View style={[er.catIcon, { backgroundColor: hexToRgba(cat?.color ?? DS.text.muted, 0.15) }]}>
+      <View style={[er.catIcon, { backgroundColor: hexToRgba(cat?.color ?? ds.text.muted, 0.15) }]}>
         <MaterialCommunityIcons
           name={(cat?.icon ?? 'receipt') as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
           size={20}
-          color={cat?.color ?? DS.text.muted}
+          color={cat?.color ?? ds.text.muted}
         />
       </View>
       <View style={er.body}>
@@ -149,7 +257,7 @@ function ExpenseRow({ expense, participants, currencySymbol, getCategoryName }: 
           <View style={er.paidByChip}>
             <Text style={er.paidByText}>{paidBy?.name ?? '—'}</Text>
           </View>
-          <MaterialCommunityIcons name={splitIcon} size={12} color={DS.text.muted} />
+          <MaterialCommunityIcons name={splitIcon} size={12} color={ds.text.muted} />
           <Text style={er.splitLabel}>{expense.split_type}</Text>
         </View>
       </View>
@@ -164,7 +272,74 @@ interface SettlementBarProps {
   currencySymbol: string;
 }
 
+function makeSbStyles(ds: DSType) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 16,
+      gap: 10,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 2,
+    },
+    headerText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    allSettledSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.muted,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    avatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    rowBody: { flex: 1 },
+    rowText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.secondary,
+    },
+    nameHighlight: {
+      fontFamily: 'Inter_600SemiBold',
+      color: ds.text.primary,
+    },
+    amt: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.tertiaryLight,
+    },
+  });
+}
+
 function SettlementBar({ currencySymbol }: SettlementBarProps) {
+  const ds = useDS();
+  const sb = useMemo(() => makeSbStyles(ds), [ds]);
   const { activeTrip } = useTripsStore();
   const settlement = activeTrip?.settlement ?? [];
 
@@ -172,7 +347,7 @@ function SettlementBar({ currencySymbol }: SettlementBarProps) {
     return (
       <View style={sb.card}>
         <View style={sb.header}>
-          <MaterialCommunityIcons name="check-circle-outline" size={18} color={DS.primary} />
+          <MaterialCommunityIcons name="check-circle-outline" size={18} color={ds.primary} />
           <Text style={sb.headerText}>All settled!</Text>
         </View>
         <Text style={sb.allSettledSub}>No outstanding balances.</Text>
@@ -183,7 +358,7 @@ function SettlementBar({ currencySymbol }: SettlementBarProps) {
   return (
     <View style={sb.card}>
       <View style={sb.header}>
-        <MaterialCommunityIcons name="swap-horizontal" size={18} color={DS.tertiary} />
+        <MaterialCommunityIcons name="swap-horizontal" size={18} color={ds.tertiary} />
         <Text style={sb.headerText}>Settlement Summary</Text>
       </View>
       {settlement.map((s, i) => {
@@ -192,8 +367,8 @@ function SettlementBar({ currencySymbol }: SettlementBarProps) {
         });
         return (
           <View key={i} style={sb.row}>
-            <View style={[sb.avatar, { backgroundColor: hexToRgba(DS.secondary, 0.15) }]}>
-              <Text style={[sb.avatarText, { color: DS.secondaryLight }]}>{initials(s.from_name)}</Text>
+            <View style={[sb.avatar, { backgroundColor: hexToRgba(ds.secondary, 0.15) }]}>
+              <Text style={[sb.avatarText, { color: ds.secondaryLight }]}>{initials(s.from_name)}</Text>
             </View>
             <View style={sb.rowBody}>
               <Text style={sb.rowText}>
@@ -212,11 +387,247 @@ function SettlementBar({ currencySymbol }: SettlementBarProps) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 20,
+      lineHeight: 28,
+      letterSpacing: -0.2,
+      color: ds.text.primary,
+    },
+    headerSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      marginTop: 1,
+    },
+    statusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: ds.radius.full,
+      borderWidth: 1,
+    },
+    statusSettled: {
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderColor: hexToRgba(ds.primary, 0.3),
+    },
+    statusPending: {
+      backgroundColor: hexToRgba(ds.tertiary, 0.12),
+      borderColor: hexToRgba(ds.tertiary, 0.3),
+    },
+    statusText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    statusTextSettled: { color: ds.primaryLight },
+    statusTextPending: { color: ds.tertiaryLight },
+
+    scroll: { flex: 1 },
+    scrollContent: { paddingTop: 16, paddingHorizontal: 16, gap: 20 },
+
+    totalCard: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 20,
+      alignItems: 'center',
+    },
+    totalLabel: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+      marginBottom: 6,
+    },
+    totalAmount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 36,
+      lineHeight: 44,
+      letterSpacing: -0.72,
+      color: ds.text.primary,
+    },
+    totalSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      marginTop: 4,
+    },
+
+    section: { gap: 0 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    sectionTitle: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
+    addBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+    },
+    addBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.primaryLight,
+    },
+
+    avatarRow: { marginHorizontal: -4 },
+    avatarContent: { paddingHorizontal: 4, gap: 12 },
+    avatarWrap: { alignItems: 'center', width: 56 },
+    avatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      borderWidth: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    avatarInitials: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 20,
+      letterSpacing: -0.3,
+    },
+    selfDot: {
+      position: 'absolute',
+      bottom: 1,
+      right: 1,
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      borderWidth: 1.5,
+      borderColor: ds.surface.screen,
+    },
+    avatarName: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.secondary,
+      textAlign: 'center',
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: ds.text.muted,
+      padding: 8,
+    },
+
+    expenseList: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      overflow: 'hidden',
+    },
+    emptyExpenses: {
+      alignItems: 'center',
+      paddingVertical: 32,
+      gap: 8,
+    },
+    emptyExpensesText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.muted,
+      textAlign: 'center',
+    },
+
+    actionBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    addExpenseBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 52,
+      borderRadius: ds.radius.md,
+      backgroundColor: ds.primary,
+    },
+    addExpenseBtnText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: '#fff',
+    },
+    settleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 52,
+      paddingHorizontal: 16,
+      borderRadius: ds.radius.md,
+      borderWidth: 1.5,
+      borderColor: ds.border.medium,
+      backgroundColor: ds.surface.elevated,
+    },
+    settleBtnActive: {
+      borderColor: hexToRgba(ds.primary, 0.4),
+      backgroundColor: hexToRgba(ds.primary, 0.08),
+    },
+    settleBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.muted,
+    },
+    settleBtnTextActive: { color: ds.primaryLight },
+  });
+}
+
 export default function TripDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { tripId } = route.params;
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
 
   const { activeTrip, refreshActiveTrip, updateTrip, addParticipant } = useTripsStore();
   const { expenseCategories } = useCategoriesStore();
@@ -257,11 +668,11 @@ export default function TripDetailScreen() {
       <View style={[s.root, { paddingTop: insets.top }]}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={DS.text.primary} />
+            <MaterialCommunityIcons name="arrow-left" size={24} color={ds.text.primary} />
           </TouchableOpacity>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={DS.primary} />
+          <ActivityIndicator size="large" color={ds.primary} />
         </View>
       </View>
     );
@@ -282,7 +693,7 @@ export default function TripDetailScreen() {
           style={s.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={DS.text.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={ds.text.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle} numberOfLines={1}>{trip.name}</Text>
@@ -318,7 +729,7 @@ export default function TripDetailScreen() {
               onPress={() => setAddParticipantOpen(true)}
               activeOpacity={0.75}
             >
-              <MaterialCommunityIcons name="account-plus-outline" size={16} color={DS.primary} />
+              <MaterialCommunityIcons name="account-plus-outline" size={16} color={ds.primary} />
               <Text style={s.addBtnText}>Add</Text>
             </TouchableOpacity>
           </View>
@@ -350,7 +761,7 @@ export default function TripDetailScreen() {
           </View>
           {expenses.length === 0 ? (
             <View style={s.emptyExpenses}>
-              <MaterialCommunityIcons name="receipt-outline" size={36} color={DS.text.muted} />
+              <MaterialCommunityIcons name="receipt-outline" size={36} color={ds.text.muted} />
               <Text style={s.emptyExpensesText}>No expenses yet. Add one to get started.</Text>
             </View>
           ) : (
@@ -394,12 +805,12 @@ export default function TripDetailScreen() {
           activeOpacity={0.85}
         >
           {settling ? (
-            <ActivityIndicator size="small" color={isSettled ? DS.primary : DS.text.muted} />
+            <ActivityIndicator size="small" color={isSettled ? ds.primary : ds.text.muted} />
           ) : (
             <MaterialCommunityIcons
               name={isSettled ? 'check-circle' : 'check-circle-outline'}
               size={20}
-              color={isSettled ? DS.primaryLight : DS.text.muted}
+              color={isSettled ? ds.primaryLight : ds.text.muted}
             />
           )}
           <Text style={[s.settleBtnText, isSettled && s.settleBtnTextActive]}>
@@ -416,405 +827,3 @@ export default function TripDetailScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-    lineHeight: 28,
-    letterSpacing: -0.2,
-    color: DS.text.primary,
-  },
-  headerSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    marginTop: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: DS.radius.full,
-    borderWidth: 1,
-  },
-  statusSettled: {
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    borderColor: hexToRgba(DS.primary, 0.3),
-  },
-  statusPending: {
-    backgroundColor: hexToRgba(DS.tertiary, 0.12),
-    borderColor: hexToRgba(DS.tertiary, 0.3),
-  },
-  statusText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  statusTextSettled: { color: DS.primaryLight },
-  statusTextPending: { color: DS.tertiaryLight },
-
-  scroll: { flex: 1 },
-  scrollContent: { paddingTop: 16, paddingHorizontal: 16, gap: 20 },
-
-  totalCard: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 20,
-    alignItems: 'center',
-  },
-  totalLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-    marginBottom: 6,
-  },
-  totalAmount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 36,
-    lineHeight: 44,
-    letterSpacing: -0.72,
-    color: DS.text.primary,
-  },
-  totalSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    marginTop: 4,
-  },
-
-  section: { gap: 0 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: DS.radius.full,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-  },
-  addBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.primaryLight,
-  },
-
-  avatarRow: { marginHorizontal: -4 },
-  avatarContent: { paddingHorizontal: 4, gap: 12 },
-  avatarWrap: { alignItems: 'center', width: 56 },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  avatarInitials: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 20,
-    letterSpacing: -0.3,
-  },
-  selfDot: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: DS.surface.screen,
-  },
-  avatarName: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    color: DS.text.secondary,
-    textAlign: 'center',
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: DS.text.muted,
-    padding: 8,
-  },
-
-  expenseList: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    overflow: 'hidden',
-  },
-  emptyExpenses: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    gap: 8,
-  },
-  emptyExpensesText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.muted,
-    textAlign: 'center',
-  },
-
-  actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  addExpenseBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    borderRadius: DS.radius.md,
-    backgroundColor: DS.primary,
-  },
-  addExpenseBtnText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#fff',
-  },
-  settleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    paddingHorizontal: 16,
-    borderRadius: DS.radius.md,
-    borderWidth: 1.5,
-    borderColor: DS.border.medium,
-    backgroundColor: DS.surface.elevated,
-  },
-  settleBtnActive: {
-    borderColor: hexToRgba(DS.primary, 0.4),
-    backgroundColor: hexToRgba(DS.primary, 0.08),
-  },
-  settleBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.muted,
-  },
-  settleBtnTextActive: { color: DS.primaryLight },
-});
-
-// ── Expense row styles ────────────────────────────────────────────────────────
-
-const er = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DS.border.subtle,
-  },
-  catIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: DS.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: { flex: 1 },
-  desc: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-    marginBottom: 4,
-  },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  paidByChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: DS.radius.full,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-  },
-  paidByText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    lineHeight: 16,
-    color: DS.primaryLight,
-  },
-  splitLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.text.muted,
-  },
-  amount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 22,
-    letterSpacing: -0.2,
-    color: DS.text.primary,
-  },
-});
-
-// ── Settlement bar styles ─────────────────────────────────────────────────────
-
-const sb = StyleSheet.create({
-  card: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 16,
-    gap: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
-  },
-  headerText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  allSettledSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.muted,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  rowBody: { flex: 1 },
-  rowText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.secondary,
-  },
-  nameHighlight: {
-    fontFamily: 'Inter_600SemiBold',
-    color: DS.text.primary,
-  },
-  amt: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.tertiaryLight,
-  },
-});
-
-// ── Add participant sheet styles ──────────────────────────────────────────────
-
-const ps = StyleSheet.create({
-  body: { padding: 20, gap: 12 },
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 12,
-    height: 50,
-    gap: 8,
-  },
-  inputIcon: {},
-  input: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
-    color: DS.text.primary,
-    padding: 0,
-  },
-  error: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-  },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 52,
-    borderRadius: DS.radius.md,
-    backgroundColor: DS.primary,
-    gap: 8,
-    marginTop: 4,
-  },
-  btnText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#fff',
-  },
-});

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
-import { DS } from '../../constants';
+import { DSType } from '../../constants/colors';
 import { hexToRgba } from '../../utils/color';
+import { useDS } from '../../hooks/useDS';
 import { useTripsStore } from '../../store/tripsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { getTripParticipants, getTripTotal } from '../../db/queries/tripQueries';
@@ -32,7 +33,7 @@ interface TripCard extends Trip {
 }
 
 const AVATAR_PALETTE = [
-  DS.primary, DS.secondary, DS.tertiary, DS.purple,
+  '#10B981', '#F43F5E', '#F59E0B', '#9C7EF0',
   '#3B82F6', '#EC4899', '#14B8A6', '#F97316',
 ];
 
@@ -70,7 +71,71 @@ interface CreateTripSheetProps {
   onCreate: (name: string, start: string | null, end: string | null, desc: string | null) => Promise<void>;
 }
 
+function makeCsStyles(ds: DSType) {
+  return StyleSheet.create({
+    body: { padding: 20, gap: 16 },
+    row: { flexDirection: 'row', gap: 12 },
+    field: { gap: 6 },
+    label: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
+    optional: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      textTransform: 'none',
+      letterSpacing: 0,
+    },
+    input: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      height: 48,
+      justifyContent: 'center',
+    },
+    inputError: { borderColor: ds.secondary },
+    inputMulti: { height: 88, paddingVertical: 12, justifyContent: 'flex-start' },
+    inputText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      color: ds.text.primary,
+      padding: 0,
+    },
+    errorText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+    },
+    createBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 54,
+      borderRadius: ds.radius.md,
+      backgroundColor: ds.primary,
+      marginTop: 4,
+    },
+    createBtnText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: '#fff',
+    },
+  });
+}
+
 function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
+  const ds = useDS();
+  const cs = useMemo(() => makeCsStyles(ds), [ds]);
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -112,8 +177,8 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
                 value={name}
                 onChangeText={(v) => { setName(v); if (v.trim()) setNameError(''); }}
                 placeholder="e.g. Goa Weekend, Bali Summer…"
-                placeholderTextColor={DS.text.muted}
-                selectionColor={DS.primary}
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
                 autoFocus
               />
             </View>
@@ -129,8 +194,8 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
                   value={startDate}
                   onChangeText={setStartDate}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor={DS.text.muted}
-                  selectionColor={DS.primary}
+                  placeholderTextColor={ds.text.muted}
+                  selectionColor={ds.primary}
                   keyboardType="numbers-and-punctuation"
                 />
               </View>
@@ -143,8 +208,8 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
                   value={endDate}
                   onChangeText={setEndDate}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor={DS.text.muted}
-                  selectionColor={DS.primary}
+                  placeholderTextColor={ds.text.muted}
+                  selectionColor={ds.primary}
                   keyboardType="numbers-and-punctuation"
                 />
               </View>
@@ -159,8 +224,8 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
                 value={description}
                 onChangeText={setDescription}
                 placeholder="What's this trip about?"
-                placeholderTextColor={DS.text.muted}
-                selectionColor={DS.primary}
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
                 multiline
                 numberOfLines={3}
               />
@@ -194,7 +259,105 @@ interface TripCardProps {
   onPress: () => void;
 }
 
+function makeCardStyles(ds: DSType) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 16,
+      ...ds.shadow.card,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginBottom: 12,
+    },
+    tripIconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: ds.radius.md,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tripName: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 17,
+      lineHeight: 22,
+      letterSpacing: -0.2,
+      color: ds.text.primary,
+      marginBottom: 2,
+    },
+    tripDates: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    badge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: ds.radius.full,
+      borderWidth: 1,
+    },
+    badgeSettled: {
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderColor: hexToRgba(ds.primary, 0.3),
+    },
+    badgePending: {
+      backgroundColor: hexToRgba(ds.tertiary, 0.12),
+      borderColor: hexToRgba(ds.tertiary, 0.3),
+    },
+    badgeText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.3,
+    },
+    badgeTextSettled: { color: ds.primaryLight },
+    badgeTextPending: { color: ds.tertiaryLight },
+    cardStats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    stat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    statDivider: {
+      width: 1,
+      height: 16,
+      backgroundColor: ds.border.subtle,
+      marginHorizontal: 12,
+    },
+    statLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    statText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.secondary,
+    },
+    statAmount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.primaryLight,
+    },
+  });
+}
+
 function TripCardView({ trip, currencySymbol, onPress }: TripCardProps) {
+  const ds = useDS();
+  const s = useMemo(() => makeCardStyles(ds), [ds]);
   const settled = trip.is_settled === 1;
   const total = (trip.total / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
@@ -203,7 +366,7 @@ function TripCardView({ trip, currencySymbol, onPress }: TripCardProps) {
       {/* Card header row */}
       <View style={s.cardTop}>
         <View style={s.tripIconWrap}>
-          <MaterialCommunityIcons name="airplane" size={22} color={DS.primary} />
+          <MaterialCommunityIcons name="airplane" size={22} color={ds.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.tripName} numberOfLines={1}>{trip.name}</Text>
@@ -219,7 +382,7 @@ function TripCardView({ trip, currencySymbol, onPress }: TripCardProps) {
       {/* Stats row */}
       <View style={s.cardStats}>
         <View style={s.stat}>
-          <MaterialCommunityIcons name="account-group-outline" size={14} color={DS.text.muted} />
+          <MaterialCommunityIcons name="account-group-outline" size={14} color={ds.text.muted} />
           <Text style={s.statText}>{trip.participantCount} participants</Text>
         </View>
         <View style={s.statDivider} />
@@ -234,9 +397,115 @@ function TripCardView({ trip, currencySymbol, onPress }: TripCardProps) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 16,
+    },
+    screenTitle: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 24,
+      lineHeight: 32,
+      letterSpacing: -0.48,
+      color: ds.text.primary,
+    },
+    screenSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+      marginTop: 2,
+    },
+
+    summaryCard: {
+      marginHorizontal: 20,
+      marginBottom: 20,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      ...ds.shadow.card,
+    },
+    summaryLabel: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+      marginBottom: 6,
+    },
+    summaryAmount: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 28,
+      lineHeight: 36,
+      letterSpacing: -0.56,
+      color: ds.text.primary,
+    },
+    summaryMeta: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20, gap: 12 },
+
+    centerFill: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 40,
+      gap: 12,
+    },
+    emptyTitle: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 20,
+      lineHeight: 28,
+      color: ds.text.primary,
+      textAlign: 'center',
+    },
+    emptyBody: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      color: ds.text.muted,
+      textAlign: 'center',
+    },
+
+    fab: {
+      position: 'absolute',
+      right: 20,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: ds.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...ds.shadow.modal,
+    },
+  });
+}
+
 export default function TripListScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
 
   const { trips, loadFromDB, selectTrip, addTrip } = useTripsStore();
   const { currencySymbol } = useSettingsStore();
@@ -285,7 +554,7 @@ export default function TripListScreen() {
     await addTrip({ name, start_date: start, end_date: end, description: desc });
   }, [addTrip]);
 
-  const totalBudget = enriched.reduce((s, t) => s + t.total, 0);
+  const totalBudget = enriched.reduce((acc, t) => acc + t.total, 0);
   const activeCount = enriched.filter((t) => !t.is_settled).length;
 
   return (
@@ -296,7 +565,7 @@ export default function TripListScreen() {
           <Text style={s.screenTitle}>My Trips</Text>
           <Text style={s.screenSub}>{enriched.length} trips · {activeCount} active</Text>
         </View>
-        <MaterialCommunityIcons name="bell-outline" size={24} color={DS.text.secondary} />
+        <MaterialCommunityIcons name="bell-outline" size={24} color={ds.text.secondary} />
       </View>
 
       {/* Summary card */}
@@ -308,18 +577,18 @@ export default function TripListScreen() {
           </Text>
         </View>
         <View style={s.summaryMeta}>
-          <MaterialCommunityIcons name="airplane-check" size={28} color={DS.primary} />
+          <MaterialCommunityIcons name="airplane-check" size={28} color={ds.primary} />
         </View>
       </View>
 
       {/* Trip list */}
       {loading ? (
         <View style={s.centerFill}>
-          <ActivityIndicator size="large" color={DS.primary} />
+          <ActivityIndicator size="large" color={ds.primary} />
         </View>
       ) : enriched.length === 0 ? (
         <View style={s.centerFill}>
-          <MaterialCommunityIcons name="airplane-off" size={56} color={DS.text.muted} />
+          <MaterialCommunityIcons name="airplane-off" size={56} color={ds.text.muted} />
           <Text style={s.emptyTitle}>No trips yet</Text>
           <Text style={s.emptyBody}>Tap + to plan your first trip and track shared expenses.</Text>
         </View>
@@ -357,263 +626,3 @@ export default function TripListScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  screenTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    lineHeight: 32,
-    letterSpacing: -0.48,
-    color: DS.text.primary,
-  },
-  screenSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-    marginTop: 2,
-  },
-
-  summaryCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    ...DS.shadow.card,
-  },
-  summaryLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-    marginBottom: 6,
-  },
-  summaryAmount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 28,
-    lineHeight: 36,
-    letterSpacing: -0.56,
-    color: DS.text.primary,
-  },
-  summaryMeta: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, gap: 12 },
-
-  card: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 16,
-    ...DS.shadow.card,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 12,
-  },
-  tripIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: DS.radius.md,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tripName: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: -0.2,
-    color: DS.text.primary,
-    marginBottom: 2,
-  },
-  tripDates: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: DS.radius.full,
-    borderWidth: 1,
-  },
-  badgeSettled: {
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    borderColor: hexToRgba(DS.primary, 0.3),
-  },
-  badgePending: {
-    backgroundColor: hexToRgba(DS.tertiary, 0.12),
-    borderColor: hexToRgba(DS.tertiary, 0.3),
-  },
-  badgeText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    lineHeight: 16,
-    letterSpacing: 0.3,
-  },
-  badgeTextSettled: { color: DS.primaryLight },
-  badgeTextPending: { color: DS.tertiaryLight },
-
-  cardStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: DS.border.subtle,
-    marginHorizontal: 12,
-  },
-  statLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-  statText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.secondary,
-  },
-  statAmount: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.primaryLight,
-  },
-
-  centerFill: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    gap: 12,
-  },
-  emptyTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-    lineHeight: 28,
-    color: DS.text.primary,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
-    color: DS.text.muted,
-    textAlign: 'center',
-  },
-
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: DS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...DS.shadow.modal,
-  },
-});
-
-// ── Create sheet styles ───────────────────────────────────────────────────────
-
-const cs = StyleSheet.create({
-  body: { padding: 20, gap: 16 },
-  row: { flexDirection: 'row', gap: 12 },
-  field: { gap: 6 },
-  label: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
-  optional: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  input: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    height: 48,
-    justifyContent: 'center',
-  },
-  inputError: { borderColor: DS.secondary },
-  inputMulti: { height: 88, paddingVertical: 12, justifyContent: 'flex-start' },
-  inputText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
-    color: DS.text.primary,
-    padding: 0,
-  },
-  errorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-  },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 54,
-    borderRadius: DS.radius.md,
-    backgroundColor: DS.primary,
-    marginTop: 4,
-  },
-  createBtnText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#fff',
-  },
-});

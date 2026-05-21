@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -8,7 +8,8 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 
 interface PrimaryButtonProps {
   label: string;
@@ -19,6 +20,33 @@ interface PrimaryButtonProps {
   style?: ViewStyle;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    button: {
+      backgroundColor: ds.primary,
+      borderRadius: ds.radius.md,
+      height: 52,
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    label: {
+      color: '#fff',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      letterSpacing: 0.14,
+    },
+    dimmed: {
+      opacity: 0.55,
+    },
+  });
+}
+
 export default function PrimaryButton({
   label,
   onPress,
@@ -27,6 +55,8 @@ export default function PrimaryButton({
   icon,
   style,
 }: PrimaryButtonProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const inactive = loading || disabled;
 
   return (
@@ -49,28 +79,3 @@ export default function PrimaryButton({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: DS.primary,
-    borderRadius: DS.radius.md,
-    height: 52,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  label: {
-    color: '#fff',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    letterSpacing: 0.14,
-  },
-  dimmed: {
-    opacity: 0.55,
-  },
-});

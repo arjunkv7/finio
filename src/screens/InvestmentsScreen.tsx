@@ -18,7 +18,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useInvestmentsStore } from '../store/investmentsStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -34,17 +35,21 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 interface AssetMeta { label: string; color: string; icon: IconName }
 
-const ASSET_META: Record<AssetType, AssetMeta> = {
-  stocks:        { label: 'Stocks',         color: DS.primary,      icon: 'trending-up' },
-  mutual_fund:   { label: 'Mutual Fund',    color: DS.primaryLight, icon: 'chart-pie' },
-  crypto:        { label: 'Crypto',         color: DS.purple,       icon: 'bitcoin' },
-  fixed_deposit: { label: 'Fixed Deposit',  color: DS.tertiary,     icon: 'bank-outline' },
-  gold:          { label: 'Gold',           color: '#F59E0B',       icon: 'gold' },
-  real_estate:   { label: 'Real Estate',    color: '#0EA5E9',       icon: 'home-city-outline' },
-  other:         { label: 'Other',          color: DS.text.muted,   icon: 'shape-outline' },
-};
+function makeAssetMeta(ds: DSType): Record<AssetType, AssetMeta> {
+  return {
+    stocks:        { label: 'Stocks',         color: ds.primary,      icon: 'trending-up' },
+    mutual_fund:   { label: 'Mutual Fund',    color: ds.primaryLight, icon: 'chart-pie' },
+    crypto:        { label: 'Crypto',         color: ds.purple,       icon: 'bitcoin' },
+    fixed_deposit: { label: 'Fixed Deposit',  color: ds.tertiary,     icon: 'bank-outline' },
+    gold:          { label: 'Gold',           color: '#F59E0B',       icon: 'gold' },
+    real_estate:   { label: 'Real Estate',    color: '#0EA5E9',       icon: 'home-city-outline' },
+    other:         { label: 'Other',          color: ds.text.muted,   icon: 'shape-outline' },
+  };
+}
 
-const ASSET_TYPES = Object.keys(ASSET_META) as AssetType[];
+const ASSET_TYPES: AssetType[] = [
+  'stocks', 'mutual_fund', 'crypto', 'fixed_deposit', 'gold', 'real_estate', 'other',
+];
 
 const MONTHS_FULL = [
   'January','February','March','April','May','June',
@@ -74,9 +79,208 @@ const formatBal = (paise: number): string =>
     maximumFractionDigits: 2,
   });
 
+// ── Style factories ───────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    header: {
+      paddingHorizontal: 20, paddingVertical: 14,
+      borderBottomWidth: 1, borderBottomColor: ds.border.subtle,
+    },
+    headerTitle: {
+      fontFamily: 'Inter_700Bold', fontSize: 24, lineHeight: 32,
+      letterSpacing: -0.48, color: ds.text.primary,
+    },
+
+    listContent: { padding: 16, gap: 0 },
+
+    // Hero
+    heroCard: { marginBottom: 16 },
+    heroLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.6, textTransform: 'uppercase', color: ds.text.muted, marginBottom: 4,
+    },
+    heroAmount: {
+      fontFamily: 'Inter_700Bold', fontSize: 36, lineHeight: 44,
+      letterSpacing: -1.2, color: ds.purple, marginBottom: 14,
+    },
+    summaryRow: { gap: 8 },
+    summaryChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+    },
+    summaryDot: { width: 8, height: 8, borderRadius: 4 },
+    summaryLabel: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: ds.text.secondary,
+    },
+    summaryValue: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+    },
+
+    // Empty
+    emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 48 },
+    emptyTitle: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 18, lineHeight: 24, color: ds.text.secondary,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20,
+      color: ds.text.muted, textAlign: 'center', maxWidth: 260,
+    },
+
+    // Section header
+    sectionHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingHorizontal: 4, paddingVertical: 8,
+    },
+    sectionIconWrap: {
+      width: 24, height: 24, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    sectionTitle: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+      textTransform: 'uppercase', letterSpacing: 0.5, color: ds.text.muted,
+    },
+    sectionTotal: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20,
+    },
+
+    // Row wrapper (card bg)
+    rowWrap: {
+      backgroundColor: ds.surface.card,
+      borderRadius: 0,
+      overflow: 'hidden',
+    },
+
+    // Investment row
+    invRow: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: ds.surface.card,
+      paddingHorizontal: 16, height: ROW_HEIGHT, gap: 12,
+    },
+    invIcon: {
+      width: 42, height: 42, borderRadius: 21,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    invInfo: { flex: 1, gap: 5 },
+    invName: {
+      fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: ds.text.primary,
+    },
+    typeBadge: {
+      alignSelf: 'flex-start',
+      borderRadius: ds.radius.full,
+      paddingHorizontal: 8, paddingVertical: 2,
+    },
+    typeBadgeText: {
+      fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14,
+    },
+    invRight: { alignItems: 'flex-end', gap: 4 },
+    invAmount: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 15, lineHeight: 20, color: ds.text.primary,
+    },
+    invDate: {
+      fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: ds.text.muted,
+    },
+    deleteAction: {
+      width: 68, height: ROW_HEIGHT,
+      backgroundColor: ds.secondary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    itemDivider: {
+      height: StyleSheet.hairlineWidth, backgroundColor: ds.border.subtle, marginLeft: 70,
+    },
+
+    // FAB
+    fab: {
+      position: 'absolute', right: 20,
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: ds.purple,
+      alignItems: 'center', justifyContent: 'center',
+      ...ds.shadow.modal,
+    },
+
+    // Sheet / form
+    sheetContent: { padding: 20, gap: 6, paddingBottom: 8 },
+    fieldLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.4, textTransform: 'uppercase',
+      color: ds.text.muted, marginTop: 10,
+    },
+    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    currencyPrefix: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.secondary,
+    },
+    input: {
+      flex: 1, height: 44,
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md, borderWidth: 1, borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      fontFamily: 'Inter_400Regular', fontSize: 15, color: ds.text.primary,
+    },
+    textArea: { height: 72, paddingTop: 10, textAlignVertical: 'top' },
+    dateRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      height: 44, backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md, borderWidth: 1, borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+    },
+    dateText: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular', fontSize: 15, color: ds.text.primary,
+    },
+    typeScroll: { gap: 8, paddingVertical: 2 },
+    typeChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: ds.radius.full, borderWidth: 1,
+      paddingHorizontal: 12, paddingVertical: 7,
+    },
+    typeChipText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16,
+    },
+    ctaBtn: {
+      marginTop: 16, height: 52, borderRadius: ds.radius.lg,
+      backgroundColor: ds.purple,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    ctaBtnDisabled: { opacity: 0.5 },
+    ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
+  });
+}
+
+function makeCalStyles(ds: DSType) {
+  return StyleSheet.create({
+    wrap: {
+      backgroundColor: ds.surface.elevated, borderRadius: ds.radius.lg, padding: 12, marginTop: 8,
+    },
+    nav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
+    },
+    navBtn: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: ds.surface.highest, alignItems: 'center', justifyContent: 'center',
+    },
+    navLabel: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: ds.text.primary,
+    },
+    row: { flexDirection: 'row', marginBottom: 6 },
+    dayH: { flex: 1, textAlign: 'center', fontFamily: 'Inter_500Medium', fontSize: 11, color: ds.text.muted },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+    selectedCell: { backgroundColor: ds.purple, borderRadius: 20 },
+    dayText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.secondary },
+    todayText: { fontFamily: 'Inter_700Bold', color: ds.purple },
+    selectedText: { fontFamily: 'Inter_700Bold', color: '#fff' },
+  });
+}
+
 // ── Inline Calendar ───────────────────────────────────────────────────────────
 
 function InlineCalendar({ value, onSelect }: { value: Date; onSelect: (d: Date) => void }) {
+  const ds = useDS();
+  const cal = useMemo(() => makeCalStyles(ds), [ds]);
+
   const [viewYear, setViewYear]   = useState(value.getFullYear());
   const [viewMonth, setViewMonth] = useState(value.getMonth());
 
@@ -102,11 +306,11 @@ function InlineCalendar({ value, onSelect }: { value: Date; onSelect: (d: Date) 
     <View style={cal.wrap}>
       <View style={cal.nav}>
         <TouchableOpacity onPress={goPrev} style={cal.navBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chevron-left" size={20} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="chevron-left" size={20} color={ds.text.secondary} />
         </TouchableOpacity>
         <Text style={cal.navLabel}>{MONTHS_FULL[viewMonth]} {viewYear}</Text>
         <TouchableOpacity onPress={goNext} style={cal.navBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.secondary} />
         </TouchableOpacity>
       </View>
       <View style={cal.row}>
@@ -154,6 +358,10 @@ function InvestmentRow({
   currencySymbol: string;
   onDelete: () => void;
 }) {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+  const ASSET_META = useMemo(() => makeAssetMeta(ds), [ds]);
+
   const swipeRef = useRef<Swipeable>(null);
   const meta = ASSET_META[investment.asset_type] ?? ASSET_META.other;
 
@@ -212,6 +420,10 @@ interface InvSection {
 // ── InvestmentsScreen ─────────────────────────────────────────────────────────
 
 export default function InvestmentsScreen() {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+  const ASSET_META = useMemo(() => makeAssetMeta(ds), [ds]);
+
   const insets = useSafeAreaInsets();
   const { investments, totalInvested, summaryByType, isLoading, loadFromDB, addInvestment, deleteInvestment } = useInvestmentsStore();
   const { currencySymbol } = useSettingsStore();
@@ -245,7 +457,7 @@ export default function InvestmentsScreen() {
         data: data ?? [],
       }))
       .sort((a, b) => b.total - a.total);
-  }, [investments]);
+  }, [investments, ASSET_META]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -306,7 +518,7 @@ export default function InvestmentsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 100 }]}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={loadFromDB} tintColor={DS.primary} colors={[DS.primary]} />
+          <RefreshControl refreshing={isLoading} onRefresh={loadFromDB} tintColor={ds.primary} colors={[ds.primary]} />
         }
         ListHeaderComponent={
           <View>
@@ -336,7 +548,7 @@ export default function InvestmentsScreen() {
             {/* Empty state */}
             {investments.length === 0 && (
               <View style={s.emptyBox}>
-                <MaterialCommunityIcons name="trending-up" size={52} color={DS.primary} style={{ opacity: 0.4 }} />
+                <MaterialCommunityIcons name="trending-up" size={52} color={ds.primary} style={{ opacity: 0.4 }} />
                 <Text style={s.emptyTitle}>No investments yet</Text>
                 <Text style={s.emptyHint}>Start building your portfolio — tap + to add your first investment</Text>
               </View>
@@ -400,7 +612,7 @@ export default function InvestmentsScreen() {
               value={assetName}
               onChangeText={setAssetName}
               placeholder="e.g. Nifty 50 Index Fund"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               autoFocus
             />
 
@@ -449,7 +661,7 @@ export default function InvestmentsScreen() {
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor={DS.text.muted}
+                placeholderTextColor={ds.text.muted}
               />
             </View>
 
@@ -460,11 +672,11 @@ export default function InvestmentsScreen() {
               onPress={() => setShowCal(c => !c)}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="calendar" size={18} color={DS.text.muted} />
+              <MaterialCommunityIcons name="calendar" size={18} color={ds.text.muted} />
               <Text style={s.dateText}>
                 {toDateStr(date) === toDateStr(new Date()) ? 'Today' : formatDateLocal(toDateStr(date))}
               </Text>
-              <MaterialCommunityIcons name={showCal ? 'chevron-up' : 'chevron-down'} size={18} color={DS.text.muted} />
+              <MaterialCommunityIcons name={showCal ? 'chevron-up' : 'chevron-down'} size={18} color={ds.text.muted} />
             </TouchableOpacity>
             {showCal && (
               <InlineCalendar
@@ -480,7 +692,7 @@ export default function InvestmentsScreen() {
               value={notes}
               onChangeText={setNotes}
               placeholder="e.g. SIP auto-debit"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               multiline
               numberOfLines={2}
             />
@@ -499,197 +711,3 @@ export default function InvestmentsScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  header: {
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: DS.border.subtle,
-  },
-  headerTitle: {
-    fontFamily: 'Inter_700Bold', fontSize: 24, lineHeight: 32,
-    letterSpacing: -0.48, color: DS.text.primary,
-  },
-
-  listContent: { padding: 16, gap: 0 },
-
-  // Hero
-  heroCard: { marginBottom: 16 },
-  heroLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.6, textTransform: 'uppercase', color: DS.text.muted, marginBottom: 4,
-  },
-  heroAmount: {
-    fontFamily: 'Inter_700Bold', fontSize: 36, lineHeight: 44,
-    letterSpacing: -1.2, color: DS.purple, marginBottom: 14,
-  },
-  summaryRow: { gap: 8 },
-  summaryChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  summaryDot: { width: 8, height: 8, borderRadius: 4 },
-  summaryLabel: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: DS.text.secondary,
-  },
-  summaryValue: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
-  },
-
-  // Empty
-  emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 48 },
-  emptyTitle: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 18, lineHeight: 24, color: DS.text.secondary,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20,
-    color: DS.text.muted, textAlign: 'center', maxWidth: 260,
-  },
-
-  // Section header
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 4, paddingVertical: 8,
-  },
-  sectionIconWrap: {
-    width: 24, height: 24, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sectionTitle: {
-    flex: 1,
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
-    textTransform: 'uppercase', letterSpacing: 0.5, color: DS.text.muted,
-  },
-  sectionTotal: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20,
-  },
-
-  // Row wrapper (card bg)
-  rowWrap: {
-    backgroundColor: DS.surface.card,
-    borderRadius: 0,
-    overflow: 'hidden',
-  },
-
-  // Investment row
-  invRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: DS.surface.card,
-    paddingHorizontal: 16, height: ROW_HEIGHT, gap: 12,
-  },
-  invIcon: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  invInfo: { flex: 1, gap: 5 },
-  invName: {
-    fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: DS.text.primary,
-  },
-  typeBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: DS.radius.full,
-    paddingHorizontal: 8, paddingVertical: 2,
-  },
-  typeBadgeText: {
-    fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14,
-  },
-  invRight: { alignItems: 'flex-end', gap: 4 },
-  invAmount: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 15, lineHeight: 20, color: DS.text.primary,
-  },
-  invDate: {
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: DS.text.muted,
-  },
-  deleteAction: {
-    width: 68, height: ROW_HEIGHT,
-    backgroundColor: DS.secondary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  itemDivider: {
-    height: StyleSheet.hairlineWidth, backgroundColor: DS.border.subtle, marginLeft: 70,
-  },
-
-  // FAB
-  fab: {
-    position: 'absolute', right: 20,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: DS.purple,
-    alignItems: 'center', justifyContent: 'center',
-    ...DS.shadow.modal,
-  },
-
-  // Sheet / form
-  sheetContent: { padding: 20, gap: 6, paddingBottom: 8 },
-  fieldLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.4, textTransform: 'uppercase',
-    color: DS.text.muted, marginTop: 10,
-  },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  currencyPrefix: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.secondary,
-  },
-  input: {
-    flex: 1, height: 44,
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md, borderWidth: 1, borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    fontFamily: 'Inter_400Regular', fontSize: 15, color: DS.text.primary,
-  },
-  textArea: { height: 72, paddingTop: 10, textAlignVertical: 'top' },
-  dateRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    height: 44, backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md, borderWidth: 1, borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-  },
-  dateText: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular', fontSize: 15, color: DS.text.primary,
-  },
-  typeScroll: { gap: 8, paddingVertical: 2 },
-  typeChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: DS.radius.full, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 7,
-  },
-  typeChipText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16,
-  },
-  ctaBtn: {
-    marginTop: 16, height: 52, borderRadius: DS.radius.lg,
-    backgroundColor: DS.purple,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ctaBtnDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
-});
-
-// ── Calendar styles ───────────────────────────────────────────────────────────
-
-const cal = StyleSheet.create({
-  wrap: {
-    backgroundColor: DS.surface.elevated, borderRadius: DS.radius.lg, padding: 12, marginTop: 8,
-  },
-  nav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
-  },
-  navBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: DS.surface.highest, alignItems: 'center', justifyContent: 'center',
-  },
-  navLabel: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: DS.text.primary,
-  },
-  row: { flexDirection: 'row', marginBottom: 6 },
-  dayH: { flex: 1, textAlign: 'center', fontFamily: 'Inter_500Medium', fontSize: 11, color: DS.text.muted },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  selectedCell: { backgroundColor: DS.purple, borderRadius: 20 },
-  dayText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: DS.text.secondary },
-  todayText: { fontFamily: 'Inter_700Bold', color: DS.purple },
-  selectedText: { fontFamily: 'Inter_700Bold', color: '#fff' },
-});

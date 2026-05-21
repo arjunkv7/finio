@@ -14,7 +14,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 // victory-native disabled until dev build — requires react-native-worklets native module
 // import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useInvestmentsStore } from '../store/investmentsStore';
@@ -72,9 +73,209 @@ function nextMonth(y: number, m: number): [number, number] {
   return m === 12 ? [y + 1, 1] : [y, m + 1];
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root:  { flex: 1, backgroundColor: ds.surface.screen },
+    scroll: { flex: 1 },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+    // Header
+    header: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: ds.text.primary },
+    monthNav:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    navBtn: {
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    navBtnDisabled: { opacity: 0.35 },
+    monthLabel: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, color: ds.text.primary,
+      minWidth: 80, textAlign: 'center',
+    },
+
+    // Content
+    content: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
+
+    // Stats
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    statTile: {
+      flex: 1,
+      minWidth: (SCREEN_W - 42) / 2 - 5,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.lg,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    statLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 11, color: ds.text.muted,
+      textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+    },
+    statValue: { fontFamily: 'Inter_700Bold', fontSize: 18 },
+
+    // Section card
+    card: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      gap: 14,
+    },
+    sectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: ds.text.primary },
+
+    // Legend
+    chartLegendRow: { flexDirection: 'row', gap: 16 },
+    legendItem:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    legendDot:      { width: 9, height: 9, borderRadius: 5 },
+    legendTxt:      { fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.secondary },
+
+    // X-axis
+    xLabels: { flexDirection: 'row', justifyContent: 'space-around', marginTop: -2 },
+    xLabel:  { fontFamily: 'Inter_400Regular', fontSize: 11, color: ds.text.muted, flex: 1, textAlign: 'center' },
+
+    // Empty
+    emptyChart: { height: CHART_H, alignItems: 'center', justifyContent: 'center' },
+    emptyTxt:   { fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.muted, textAlign: 'center' },
+
+    // Donut + pie legend
+    donutRow:     { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    pieLegend:    { flex: 1, gap: 8 },
+    pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    pieLegendName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.secondary },
+    pieLegendPct:  { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: ds.text.primary },
+
+    // Category list
+    catList: { gap: 12 },
+    catRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    catIconWrap: {
+      width: 30, height: 30, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    },
+    catInfo:   { flex: 1, gap: 4 },
+    catTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    catName:   { fontFamily: 'Inter_500Medium', fontSize: 13, color: ds.text.primary },
+    catAmt:    { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: ds.text.primary },
+    catBarBg:  { height: 5, borderRadius: 3, backgroundColor: ds.surface.elevated, overflow: 'hidden' },
+    catBarFill: { height: '100%', borderRadius: 3 },
+    catPctTxt: { fontFamily: 'Inter_400Regular', fontSize: 11, color: ds.text.muted },
+
+    // Goals
+    goalsScroll: { paddingRight: 8, gap: 12, flexDirection: 'row' },
+    goalMini: {
+      width: 130, backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.lg, padding: 12, gap: 7,
+    },
+    goalIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    goalName:  { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: ds.text.primary },
+    goalBarBg: { height: 4, borderRadius: 2, backgroundColor: ds.surface.card, overflow: 'hidden' },
+    goalBarFill: { height: '100%', borderRadius: 2 },
+    goalPct:   { fontFamily: 'Inter_700Bold', fontSize: 16 },
+    goalAmts:  { fontFamily: 'Inter_400Regular', fontSize: 11, color: ds.text.muted },
+
+    // Net worth
+    nwRow:       { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    nwIcon:      { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    nwLabel:     { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: ds.text.secondary },
+    nwVal:       { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+    nwDivider:   { height: 1, backgroundColor: ds.border.subtle, marginVertical: 2 },
+    nwTotalLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: ds.text.primary },
+    nwTotalVal:   { fontFamily: 'Inter_700Bold', fontSize: 18 },
+
+    // Annual button
+    annualBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: ds.surface.card, borderRadius: ds.radius.lg,
+      paddingVertical: 14,
+      borderWidth: 1, borderColor: `${ds.primary}44`,
+    },
+    annualBtnTxt: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: ds.primary },
+
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalSheet: {
+      backgroundColor: ds.surface.card,
+      borderTopLeftRadius: ds.radius.xl,
+      borderTopRightRadius: ds.radius.xl,
+      padding: 20,
+      maxHeight: '80%',
+    },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
+    },
+    modalTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: ds.text.primary },
+
+    // Table
+    tableHead: {
+      flexDirection: 'row', paddingVertical: 8,
+      borderBottomWidth: 1, borderBottomColor: ds.border.subtle, marginBottom: 4,
+    },
+    th: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 11, color: ds.text.muted,
+      textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right',
+    },
+    tableRow: {
+      flexDirection: 'row', paddingVertical: 10,
+      borderBottomWidth: 1, borderBottomColor: ds.border.subtle, alignItems: 'center',
+    },
+    tableRowActive: {
+      backgroundColor: `${ds.primary}11`,
+      borderRadius: 8, paddingHorizontal: 4, marginHorizontal: -4,
+    },
+    tableTotal: {
+      borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: ds.border.medium,
+      marginTop: 4, paddingTop: 12,
+    },
+    colMonth: { flex: 1.2, textAlign: 'left' },
+    colNum:   { flex: 1.4, textAlign: 'right' },
+    td: { fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.secondary },
+    tdBold: { fontFamily: 'Inter_700Bold', fontSize: 14, color: ds.text.primary, textAlign: 'right' },
+    tdActive: { color: ds.primary, fontFamily: 'Inter_600SemiBold' },
+
+    // Sub-tab bar
+    subTabBar: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      gap: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    subTabPill: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: ds.radius.md,
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+    },
+    subTabPillActive: {
+      backgroundColor: ds.primary,
+    },
+    subTabTxt: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      color: ds.text.muted,
+    },
+    subTabTxtActive: {
+      color: '#fff',
+    },
+  });
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ title, children, styles }: { title: string; children: React.ReactNode; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -83,7 +284,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
-function StatTile({ label, value, color }: { label: string; value: string; color: string }) {
+function StatTile({ label, value, color, styles }: { label: string; value: string; color: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.statTile}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -95,6 +296,9 @@ function StatTile({ label, value, color }: { label: string; value: string; color
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function ReportsScreen() {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   const insets = useSafeAreaInsets();
   const sym = useSettingsStore(s => s.currencySymbol);
   const { totalBalance, loadFromDB: loadAccounts } = useAccountsStore();
@@ -158,7 +362,7 @@ export default function ReportsScreen() {
             id:     cs.category_id ?? '',
             name:   cat?.name  ?? 'Unknown',
             icon:   cat?.icon  ?? 'shape',
-            color:  cat?.color ?? DS.text.muted,
+            color:  cat?.color ?? ds.text.muted,
             amount: cs.total,
             pct:    totalExp > 0 ? (cs.total / totalExp) * 100 : 0,
           };
@@ -170,7 +374,7 @@ export default function ReportsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [year, month, ds]);
 
   useFocusEffect(
     useCallback(() => {
@@ -221,7 +425,7 @@ export default function ReportsScreen() {
               style={styles.navBtn}
               onPress={() => { const [y, m] = prevMonth(year, month); setYear(y); setMonth(m); }}
             >
-              <MaterialCommunityIcons name="chevron-left" size={22} color={DS.text.primary} />
+              <MaterialCommunityIcons name="chevron-left" size={22} color={ds.text.primary} />
             </TouchableOpacity>
             <Text style={styles.monthLabel}>{MONTH_ABBR[month - 1]} {year}</Text>
             <TouchableOpacity
@@ -233,7 +437,7 @@ export default function ReportsScreen() {
               <MaterialCommunityIcons
                 name="chevron-right"
                 size={22}
-                color={isCurrentMonth ? DS.text.muted : DS.text.primary}
+                color={isCurrentMonth ? ds.text.muted : ds.text.primary}
               />
             </TouchableOpacity>
           </View>
@@ -260,7 +464,7 @@ export default function ReportsScreen() {
         <BudgetScreen />
       ) : loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={DS.primary} size="large" />
+          <ActivityIndicator color={ds.primary} size="large" />
         </View>
       ) : (
         <ScrollView
@@ -270,16 +474,16 @@ export default function ReportsScreen() {
         >
           {/* Stats */}
           <View style={styles.statsGrid}>
-            <StatTile label="Income"       value={fmtAmt(summary.income, sym)}   color={DS.primary} />
-            <StatTile label="Expenses"     value={fmtAmt(summary.expenses, sym)} color={DS.secondary} />
-            <StatTile label="Net Savings"  value={fmtAmt(summary.net, sym)}      color={summary.net >= 0 ? DS.primary : DS.secondary} />
-            <StatTile label="Savings Rate" value={`${Math.round(savingsRate)}%`} color={DS.tertiary} />
+            <StatTile label="Income"       value={fmtAmt(summary.income, sym)}   color={ds.primary} styles={styles} />
+            <StatTile label="Expenses"     value={fmtAmt(summary.expenses, sym)} color={ds.secondary} styles={styles} />
+            <StatTile label="Net Savings"  value={fmtAmt(summary.net, sym)}      color={summary.net >= 0 ? ds.primary : ds.secondary} styles={styles} />
+            <StatTile label="Savings Rate" value={`${Math.round(savingsRate)}%`} color={ds.tertiary} styles={styles} />
           </View>
 
           {/* Income vs Expenses bar chart */}
-          <SectionCard title="Income vs Expenses">
+          <SectionCard title="Income vs Expenses" styles={styles}>
             <View style={styles.chartLegendRow}>
-              {[['Income', DS.primary], ['Expenses', DS.secondary]].map(([l, c]) => (
+              {[['Income', ds.primary], ['Expenses', ds.secondary]].map(([l, c]) => (
                 <View key={l} style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: c }]} />
                   <Text style={styles.legendTxt}>{l}</Text>
@@ -306,7 +510,7 @@ export default function ReportsScreen() {
           </SectionCard>
 
           {/* Spending by category */}
-          <SectionCard title="Spending by Category">
+          <SectionCard title="Spending by Category" styles={styles}>
             {catRows.length > 0 ? (
               <>
                 <View style={styles.donutRow}>
@@ -354,7 +558,7 @@ export default function ReportsScreen() {
 
           {/* Savings goals summary */}
           {activeGoals.length > 0 && (
-            <SectionCard title="Savings Goals">
+            <SectionCard title="Savings Goals" styles={styles}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -362,21 +566,21 @@ export default function ReportsScreen() {
               >
                 {activeGoals.map(g => (
                   <View key={g.id} style={styles.goalMini}>
-                    <View style={[styles.goalIconWrap, { backgroundColor: `${g.color ?? DS.tertiary}22` }]}>
+                    <View style={[styles.goalIconWrap, { backgroundColor: `${g.color ?? ds.tertiary}22` }]}>
                       <MaterialCommunityIcons
                         name={(g.icon ?? 'piggy-bank') as any}
                         size={22}
-                        color={g.color ?? DS.tertiary}
+                        color={g.color ?? ds.tertiary}
                       />
                     </View>
                     <Text style={styles.goalName} numberOfLines={1}>{g.name}</Text>
                     <View style={styles.goalBarBg}>
                       <View style={[
                         styles.goalBarFill,
-                        { width: `${Math.min(100, Math.round(g.percent))}%` as any, backgroundColor: g.color ?? DS.tertiary },
+                        { width: `${Math.min(100, Math.round(g.percent))}%` as any, backgroundColor: g.color ?? ds.tertiary },
                       ]} />
                     </View>
-                    <Text style={[styles.goalPct, { color: g.color ?? DS.tertiary }]}>
+                    <Text style={[styles.goalPct, { color: g.color ?? ds.tertiary }]}>
                       {Math.round(g.percent)}%
                     </Text>
                     <Text style={styles.goalAmts} numberOfLines={1}>
@@ -389,25 +593,25 @@ export default function ReportsScreen() {
           )}
 
           {/* Net worth */}
-          <SectionCard title="Net Worth">
+          <SectionCard title="Net Worth" styles={styles}>
             <View style={styles.nwRow}>
-              <View style={[styles.nwIcon, { backgroundColor: `${DS.primary}22` }]}>
-                <MaterialCommunityIcons name="wallet" size={16} color={DS.primary} />
+              <View style={[styles.nwIcon, { backgroundColor: `${ds.primary}22` }]}>
+                <MaterialCommunityIcons name="wallet" size={16} color={ds.primary} />
               </View>
               <Text style={styles.nwLabel}>Account Balances</Text>
-              <Text style={[styles.nwVal, { color: DS.primary }]}>{fmtAmt(totalBalance, sym)}</Text>
+              <Text style={[styles.nwVal, { color: ds.primary }]}>{fmtAmt(totalBalance, sym)}</Text>
             </View>
             <View style={styles.nwRow}>
-              <View style={[styles.nwIcon, { backgroundColor: `${DS.purple}22` }]}>
-                <MaterialCommunityIcons name="trending-up" size={16} color={DS.purple} />
+              <View style={[styles.nwIcon, { backgroundColor: `${ds.purple}22` }]}>
+                <MaterialCommunityIcons name="trending-up" size={16} color={ds.purple} />
               </View>
               <Text style={styles.nwLabel}>Investments</Text>
-              <Text style={[styles.nwVal, { color: DS.purple }]}>{fmtAmt(totalInvested, sym)}</Text>
+              <Text style={[styles.nwVal, { color: ds.purple }]}>{fmtAmt(totalInvested, sym)}</Text>
             </View>
             <View style={styles.nwDivider} />
             <View style={styles.nwRow}>
               <Text style={styles.nwTotalLabel}>Total Net Worth</Text>
-              <Text style={[styles.nwTotalVal, { color: netWorth >= 0 ? DS.primaryLight : DS.secondary }]}>
+              <Text style={[styles.nwTotalVal, { color: netWorth >= 0 ? ds.primaryLight : ds.secondary }]}>
                 {fmtAmt(netWorth, sym)}
               </Text>
             </View>
@@ -415,9 +619,9 @@ export default function ReportsScreen() {
 
           {/* Annual report button */}
           <TouchableOpacity style={styles.annualBtn} onPress={openAnnual} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="calendar-month-outline" size={18} color={DS.primary} />
+            <MaterialCommunityIcons name="calendar-month-outline" size={18} color={ds.primary} />
             <Text style={styles.annualBtnTxt}>View Annual Report {year}</Text>
-            <MaterialCommunityIcons name="chevron-right" size={18} color={DS.primary} />
+            <MaterialCommunityIcons name="chevron-right" size={18} color={ds.primary} />
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -434,13 +638,13 @@ export default function ReportsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Annual Report {year}</Text>
               <TouchableOpacity onPress={() => setShowAnnual(false)} hitSlop={12}>
-                <MaterialCommunityIcons name="close" size={22} color={DS.text.secondary} />
+                <MaterialCommunityIcons name="close" size={22} color={ds.text.secondary} />
               </TouchableOpacity>
             </View>
 
             {annualLoading ? (
               <View style={styles.center}>
-                <ActivityIndicator color={DS.primary} />
+                <ActivityIndicator color={ds.primary} />
               </View>
             ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
@@ -461,13 +665,13 @@ export default function ReportsScreen() {
                       <Text style={[styles.td, styles.colMonth, isActive && styles.tdActive]}>
                         {label}
                       </Text>
-                      <Text style={[styles.td, styles.colNum, { color: row.income > 0 ? DS.primary : DS.text.muted }]}>
+                      <Text style={[styles.td, styles.colNum, { color: row.income > 0 ? ds.primary : ds.text.muted }]}>
                         {row.income > 0 ? fmtAmt(row.income, sym) : '—'}
                       </Text>
-                      <Text style={[styles.td, styles.colNum, { color: row.expenses > 0 ? DS.secondary : DS.text.muted }]}>
+                      <Text style={[styles.td, styles.colNum, { color: row.expenses > 0 ? ds.secondary : ds.text.muted }]}>
                         {row.expenses > 0 ? fmtAmt(row.expenses, sym) : '—'}
                       </Text>
-                      <Text style={[styles.td, styles.colNum, { color: net > 0 ? DS.primary : net < 0 ? DS.secondary : DS.text.muted }]}>
+                      <Text style={[styles.td, styles.colNum, { color: net > 0 ? ds.primary : net < 0 ? ds.secondary : ds.text.muted }]}>
                         {net !== 0 ? fmtAmt(net, sym) : '—'}
                       </Text>
                     </View>
@@ -476,14 +680,14 @@ export default function ReportsScreen() {
 
                 <View style={[styles.tableRow, styles.tableTotal]}>
                   <Text style={[styles.tdBold, styles.colMonth]}>Total</Text>
-                  <Text style={[styles.tdBold, styles.colNum, { color: DS.primary }]}>
+                  <Text style={[styles.tdBold, styles.colNum, { color: ds.primary }]}>
                     {fmtAmt(annualTotals.income, sym)}
                   </Text>
-                  <Text style={[styles.tdBold, styles.colNum, { color: DS.secondary }]}>
+                  <Text style={[styles.tdBold, styles.colNum, { color: ds.secondary }]}>
                     {fmtAmt(annualTotals.expenses, sym)}
                   </Text>
                   <Text style={[styles.tdBold, styles.colNum, {
-                    color: (annualTotals.income - annualTotals.expenses) >= 0 ? DS.primary : DS.secondary,
+                    color: (annualTotals.income - annualTotals.expenses) >= 0 ? ds.primary : ds.secondary,
                   }]}>
                     {fmtAmt(annualTotals.income - annualTotals.expenses, sym)}
                   </Text>
@@ -496,201 +700,3 @@ export default function ReportsScreen() {
     </View>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  root:  { flex: 1, backgroundColor: DS.surface.screen },
-  scroll: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  // Header
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: DS.text.primary },
-  monthNav:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  navBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navBtnDisabled: { opacity: 0.35 },
-  monthLabel: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, color: DS.text.primary,
-    minWidth: 80, textAlign: 'center',
-  },
-
-  // Content
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
-
-  // Stats
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statTile: {
-    flex: 1,
-    minWidth: (SCREEN_W - 42) / 2 - 5,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-  },
-  statLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 11, color: DS.text.muted,
-    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
-  },
-  statValue: { fontFamily: 'Inter_700Bold', fontSize: 18 },
-
-  // Section card
-  card: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    gap: 14,
-  },
-  sectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: DS.text.primary },
-
-  // Legend
-  chartLegendRow: { flexDirection: 'row', gap: 16 },
-  legendItem:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot:      { width: 9, height: 9, borderRadius: 5 },
-  legendTxt:      { fontFamily: 'Inter_400Regular', fontSize: 12, color: DS.text.secondary },
-
-  // X-axis
-  xLabels: { flexDirection: 'row', justifyContent: 'space-around', marginTop: -2 },
-  xLabel:  { fontFamily: 'Inter_400Regular', fontSize: 11, color: DS.text.muted, flex: 1, textAlign: 'center' },
-
-  // Empty
-  emptyChart: { height: CHART_H, alignItems: 'center', justifyContent: 'center' },
-  emptyTxt:   { fontFamily: 'Inter_400Regular', fontSize: 13, color: DS.text.muted, textAlign: 'center' },
-
-  // Donut + pie legend
-  donutRow:     { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  pieLegend:    { flex: 1, gap: 8 },
-  pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  pieLegendName: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 12, color: DS.text.secondary },
-  pieLegendPct:  { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: DS.text.primary },
-
-  // Category list
-  catList: { gap: 12 },
-  catRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  catIconWrap: {
-    width: 30, height: 30, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
-  },
-  catInfo:   { flex: 1, gap: 4 },
-  catTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  catName:   { fontFamily: 'Inter_500Medium', fontSize: 13, color: DS.text.primary },
-  catAmt:    { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: DS.text.primary },
-  catBarBg:  { height: 5, borderRadius: 3, backgroundColor: DS.surface.elevated, overflow: 'hidden' },
-  catBarFill: { height: '100%', borderRadius: 3 },
-  catPctTxt: { fontFamily: 'Inter_400Regular', fontSize: 11, color: DS.text.muted },
-
-  // Goals
-  goalsScroll: { paddingRight: 8, gap: 12, flexDirection: 'row' },
-  goalMini: {
-    width: 130, backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.lg, padding: 12, gap: 7,
-  },
-  goalIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  goalName:  { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: DS.text.primary },
-  goalBarBg: { height: 4, borderRadius: 2, backgroundColor: DS.surface.card, overflow: 'hidden' },
-  goalBarFill: { height: '100%', borderRadius: 2 },
-  goalPct:   { fontFamily: 'Inter_700Bold', fontSize: 16 },
-  goalAmts:  { fontFamily: 'Inter_400Regular', fontSize: 11, color: DS.text.muted },
-
-  // Net worth
-  nwRow:       { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  nwIcon:      { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  nwLabel:     { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 14, color: DS.text.secondary },
-  nwVal:       { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  nwDivider:   { height: 1, backgroundColor: DS.border.subtle, marginVertical: 2 },
-  nwTotalLabel: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 15, color: DS.text.primary },
-  nwTotalVal:   { fontFamily: 'Inter_700Bold', fontSize: 18 },
-
-  // Annual button
-  annualBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: DS.surface.card, borderRadius: DS.radius.lg,
-    paddingVertical: 14,
-    borderWidth: 1, borderColor: `${DS.primary}44`,
-  },
-  annualBtnTxt: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: DS.primary },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: DS.surface.card,
-    borderTopLeftRadius: DS.radius.xl,
-    borderTopRightRadius: DS.radius.xl,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
-  },
-  modalTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: DS.text.primary },
-
-  // Table
-  tableHead: {
-    flexDirection: 'row', paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: DS.border.subtle, marginBottom: 4,
-  },
-  th: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 11, color: DS.text.muted,
-    textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right',
-  },
-  tableRow: {
-    flexDirection: 'row', paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: DS.border.subtle, alignItems: 'center',
-  },
-  tableRowActive: {
-    backgroundColor: `${DS.primary}11`,
-    borderRadius: 8, paddingHorizontal: 4, marginHorizontal: -4,
-  },
-  tableTotal: {
-    borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: DS.border.medium,
-    marginTop: 4, paddingTop: 12,
-  },
-  colMonth: { flex: 1.2, textAlign: 'left' },
-  colNum:   { flex: 1.4, textAlign: 'right' },
-  td: { fontFamily: 'Inter_400Regular', fontSize: 13, color: DS.text.secondary },
-  tdBold: { fontFamily: 'Inter_700Bold', fontSize: 14, color: DS.text.primary, textAlign: 'right' },
-  tdActive: { color: DS.primary, fontFamily: 'Inter_600SemiBold' },
-
-  // Sub-tab bar
-  subTabBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  subTabPill: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: DS.radius.md,
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-  },
-  subTabPillActive: {
-    backgroundColor: DS.primary,
-  },
-  subTabTxt: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    color: DS.text.muted,
-  },
-  subTabTxtActive: {
-    color: '#fff',
-  },
-});

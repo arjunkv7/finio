@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSettingsStore } from '../store/settingsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
@@ -90,12 +91,247 @@ const formatBackupDate = (iso: string | null): string => {
   });
 };
 
+// ── Styles factory ────────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    header: {
+      paddingHorizontal: 20, paddingVertical: 14,
+      borderBottomWidth: 1, borderBottomColor: ds.border.subtle,
+    },
+    headerTitle: {
+      fontFamily: 'Inter_700Bold', fontSize: 24, lineHeight: 32,
+      letterSpacing: -0.48, color: ds.text.primary,
+    },
+    backBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    addIconBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    scroll: { flex: 1 },
+    scrollContent: { padding: 16, gap: 8 },
+
+    sectionLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 15,
+      letterSpacing: 0.8, textTransform: 'uppercase',
+      color: ds.text.muted, marginBottom: 4, marginLeft: 4, marginTop: 8,
+    },
+
+    card: { overflow: 'hidden' },
+
+    row: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+    },
+    rowIcon: {
+      width: 34, height: 34, borderRadius: 10,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    rowLabel: {
+      flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: ds.text.primary,
+    },
+    rowValue: {
+      fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, color: ds.text.muted,
+    },
+    rowDivider: {
+      height: StyleSheet.hairlineWidth, backgroundColor: ds.border.subtle, marginLeft: 62,
+    },
+
+    deleteAction: {
+      width: 68, backgroundColor: ds.secondary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    // Currency picker
+    currencyList: { maxHeight: 400, paddingHorizontal: 4 },
+    currencyRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14, gap: 14,
+      borderRadius: ds.radius.md,
+    },
+    currencyRowActive: { backgroundColor: hexToRgba(ds.primary, 0.08) },
+    currencySymbol: {
+      fontFamily: 'Inter_700Bold', fontSize: 18, lineHeight: 24, width: 32, textAlign: 'center',
+    },
+    currencyInfo: { flex: 1, gap: 2 },
+    currencyCode: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 15, lineHeight: 20, color: ds.text.primary,
+    },
+    currencyName: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted,
+    },
+
+    // Theme options
+    themeOptions: { padding: 20, gap: 10 },
+    themeOption: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      padding: 16, borderRadius: ds.radius.lg,
+      borderWidth: 1.5, borderColor: ds.border.subtle,
+    },
+    themeOptionActive: { borderColor: ds.primary, backgroundColor: hexToRgba(ds.primary, 0.06) },
+    themeIconWrap: {
+      width: 40, height: 40, borderRadius: ds.radius.lg,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    themeOptionText: {
+      flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.primary,
+    },
+
+    // Categories view
+    tabRow: {
+      flexDirection: 'row', padding: 12, gap: 8,
+      borderBottomWidth: 1, borderBottomColor: ds.border.subtle,
+    },
+    tabBtn: {
+      flex: 1, paddingVertical: 8, borderRadius: ds.radius.md,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center',
+    },
+    tabBtnActive: { backgroundColor: ds.primary },
+    tabBtnText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: ds.text.muted,
+    },
+    tabBtnTextActive: { color: '#fff' },
+
+    catRow: {
+      flexDirection: 'row', alignItems: 'center',
+      height: 62, paddingHorizontal: 16, gap: 12,
+      backgroundColor: ds.surface.screen,
+    },
+    catIcon: {
+      width: 38, height: 38, borderRadius: 12,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    catName: {
+      flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: ds.text.primary,
+    },
+    systemBadge: {
+      backgroundColor: ds.surface.elevated, borderRadius: ds.radius.full,
+      paddingHorizontal: 8, paddingVertical: 3,
+    },
+    systemBadgeText: {
+      fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: ds.text.muted,
+    },
+
+    divider: {
+      height: StyleSheet.hairlineWidth, backgroundColor: ds.border.subtle,
+    },
+
+    // Sheet / form
+    sheetContent: { padding: 20, gap: 6, paddingBottom: 8 },
+    fieldLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14,
+      letterSpacing: 0.5, textTransform: 'uppercase', color: ds.text.muted, marginTop: 10,
+    },
+    input: {
+      height: 44, backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md, borderWidth: 1, borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      fontFamily: 'Inter_400Regular', fontSize: 15, color: ds.text.primary,
+    },
+    typeRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    typeChip: {
+      flex: 1, alignItems: 'center', paddingVertical: 8,
+      borderRadius: ds.radius.md, borderWidth: 1.5, borderColor: ds.border.medium,
+    },
+    typeChipText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: ds.text.secondary,
+    },
+    iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    iconCell: {
+      width: 42, height: 42, borderRadius: ds.radius.md,
+      borderWidth: 1.5, borderColor: ds.border.subtle,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    colorRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    swatch: { width: 30, height: 30, borderRadius: 15 },
+    swatchSelected: { borderWidth: 3, borderColor: '#fff' },
+    ctaBtn: {
+      marginTop: 16, height: 52, borderRadius: ds.radius.lg,
+      backgroundColor: ds.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    ctaBtnDisabled: { opacity: 0.5 },
+    ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
+
+    emptyBox: { alignItems: 'center', gap: 8, paddingVertical: 40 },
+    emptyTitle: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.secondary,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: ds.text.muted,
+    },
+
+    // PIN Modal styles
+    pmOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.85)',
+      justifyContent: 'flex-end',
+    },
+    pmContainer: {
+      backgroundColor: ds.surface.card,
+      borderTopLeftRadius: ds.radius.xl,
+      borderTopRightRadius: ds.radius.xl,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingTop: 12, paddingHorizontal: 24, paddingBottom: 24,
+      ...ds.shadow.modal,
+    },
+    pmHeader: {
+      alignItems: 'flex-end', marginBottom: 8,
+    },
+    pmTitle: {
+      fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28,
+      letterSpacing: -0.4, color: ds.text.primary,
+      textAlign: 'center', marginBottom: 8,
+    },
+    pmSubtitle: {
+      fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20,
+      color: ds.text.muted, textAlign: 'center', marginBottom: 28,
+    },
+    pmDots: {
+      flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 36,
+    },
+    pmDot: {
+      width: 16, height: 16, borderRadius: 8,
+      borderWidth: 2, borderColor: ds.border.medium,
+      backgroundColor: 'transparent',
+    },
+    pmDotFilled: {
+      backgroundColor: ds.primary, borderColor: ds.primary,
+    },
+    pmKeypad: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 0,
+    },
+    pmKeyCell: {
+      width: '33.33%', aspectRatio: 1.6,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    pmKeyText: {
+      fontFamily: 'Inter_400Regular', fontSize: 26, lineHeight: 32, color: ds.text.primary,
+    },
+  });
+}
+
 // ── ManageCategoriesView ──────────────────────────────────────────────────────
 
 interface ManageCatProps { onBack: () => void }
 
 function ManageCategoriesView({ onBack }: ManageCatProps) {
   const insets   = useSafeAreaInsets();
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const { incomeCategories, expenseCategories, addCategory, updateCategory, deleteCategory, loadFromDB } = useCategoriesStore();
 
   const [tab,        setTab]        = useState<CategoryType>('expense');
@@ -176,28 +412,28 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
   };
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={onBack} style={s.backBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={DS.text.primary} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={ds.text.primary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Manage Categories</Text>
-        <TouchableOpacity style={s.addIconBtn} onPress={openAdd} activeOpacity={0.8}>
-          <MaterialCommunityIcons name="plus" size={22} color={DS.primary} />
+        <Text style={styles.headerTitle}>Manage Categories</Text>
+        <TouchableOpacity style={styles.addIconBtn} onPress={openAdd} activeOpacity={0.8}>
+          <MaterialCommunityIcons name="plus" size={22} color={ds.primary} />
         </TouchableOpacity>
       </View>
 
       {/* Tabs */}
-      <View style={s.tabRow}>
+      <View style={styles.tabRow}>
         {(['expense', 'income'] as CategoryType[]).map(t => (
           <TouchableOpacity
             key={t}
-            style={[s.tabBtn, tab === t && s.tabBtnActive]}
+            style={[styles.tabBtn, tab === t && styles.tabBtnActive]}
             onPress={() => setTab(t)}
             activeOpacity={0.8}
           >
-            <Text style={[s.tabBtnText, tab === t && s.tabBtnTextActive]}>
+            <Text style={[styles.tabBtnText, tab === t && styles.tabBtnTextActive]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -209,13 +445,13 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
         keyExtractor={c => c.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
         ListEmptyComponent={
-          <View style={s.emptyBox}>
-            <Text style={s.emptyTitle}>No {tab} categories</Text>
-            <Text style={s.emptyHint}>Tap + to create one</Text>
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTitle}>No {tab} categories</Text>
+            <Text style={styles.emptyHint}>Tap + to create one</Text>
           </View>
         }
         renderItem={renderCat}
-        ItemSeparatorComponent={() => <View style={s.divider} />}
+        ItemSeparatorComponent={() => <View style={styles.divider} />}
       />
 
       {/* Add/Edit category form */}
@@ -225,20 +461,20 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
         title={editCat ? (editCat.is_system ? 'View Category' : 'Edit Category') : 'New Category'}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView contentContainerStyle={s.sheetContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Type (add only) */}
             {!editCat && (
               <>
-                <Text style={s.fieldLabel}>Type</Text>
-                <View style={s.typeRow}>
+                <Text style={styles.fieldLabel}>Type</Text>
+                <View style={styles.typeRow}>
                   {(['expense', 'income'] as CategoryType[]).map(t => (
                     <TouchableOpacity
                       key={t}
-                      style={[s.typeChip, catType === t && { backgroundColor: t === 'income' ? DS.primary : DS.secondary, borderColor: 'transparent' }]}
+                      style={[styles.typeChip, catType === t && { backgroundColor: t === 'income' ? ds.primary : ds.secondary, borderColor: 'transparent' }]}
                       onPress={() => setCatType(t)}
                       activeOpacity={0.8}
                     >
-                      <Text style={[s.typeChipText, catType === t && { color: '#fff' }]}>
+                      <Text style={[styles.typeChipText, catType === t && { color: '#fff' }]}>
                         {t.charAt(0).toUpperCase() + t.slice(1)}
                       </Text>
                     </TouchableOpacity>
@@ -248,42 +484,42 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
             )}
 
             {/* Name */}
-            <Text style={s.fieldLabel}>Name *</Text>
+            <Text style={styles.fieldLabel}>Name *</Text>
             <TextInput
-              style={s.input}
+              style={styles.input}
               value={catName}
               onChangeText={setCatName}
               placeholder="Category name"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               autoFocus={!editCat?.is_system}
               editable={!editCat?.is_system}
             />
 
             {/* Icon */}
-            <Text style={s.fieldLabel}>Icon</Text>
-            <View style={s.iconGrid}>
+            <Text style={styles.fieldLabel}>Icon</Text>
+            <View style={styles.iconGrid}>
               {CAT_ICONS.map(icon => {
                 const sel = catIcon === icon;
                 return (
                   <TouchableOpacity
                     key={icon}
-                    style={[s.iconCell, sel && { borderColor: catColor, backgroundColor: hexToRgba(catColor, 0.15) }]}
+                    style={[styles.iconCell, sel && { borderColor: catColor, backgroundColor: hexToRgba(catColor, 0.15) }]}
                     onPress={() => !editCat?.is_system && setCatIcon(icon)}
                     activeOpacity={0.7}
                   >
-                    <MaterialCommunityIcons name={icon} size={20} color={sel ? catColor : DS.text.secondary} />
+                    <MaterialCommunityIcons name={icon} size={20} color={sel ? catColor : ds.text.secondary} />
                   </TouchableOpacity>
                 );
               })}
             </View>
 
             {/* Color */}
-            <Text style={s.fieldLabel}>Color</Text>
-            <View style={s.colorRow}>
+            <Text style={styles.fieldLabel}>Color</Text>
+            <View style={styles.colorRow}>
               {CAT_COLORS.map(c => (
                 <TouchableOpacity
                   key={c}
-                  style={[s.swatch, { backgroundColor: c }, catColor === c && s.swatchSelected]}
+                  style={[styles.swatch, { backgroundColor: c }, catColor === c && styles.swatchSelected]}
                   onPress={() => !editCat?.is_system && setCatColor(c)}
                   activeOpacity={0.8}
                 />
@@ -292,12 +528,12 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
 
             {!editCat?.is_system && (
               <TouchableOpacity
-                style={[s.ctaBtn, saving && s.ctaBtnDisabled]}
+                style={[styles.ctaBtn, saving && styles.ctaBtnDisabled]}
                 onPress={handleSave}
                 disabled={saving}
                 activeOpacity={0.85}
               >
-                <Text style={s.ctaText}>{saving ? 'Saving…' : editCat ? 'Save Changes' : 'Create Category'}</Text>
+                <Text style={styles.ctaText}>{saving ? 'Saving…' : editCat ? 'Save Changes' : 'Create Category'}</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -314,6 +550,8 @@ const CAT_ROW_H = 62;
 function CatRow({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void; onDelete?: () => void }) {
   const swipeRef = React.useRef<Swipeable>(null);
   const isSystem = cat.is_system === 1;
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
 
   const renderRight = (progress: Animated.AnimatedInterpolation<number>) => {
     if (!onDelete) return null;
@@ -321,7 +559,7 @@ function CatRow({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void; 
     return (
       <Animated.View style={{ transform: [{ translateX: tx }] }}>
         <TouchableOpacity
-          style={[s.deleteAction, { height: CAT_ROW_H }]}
+          style={[styles.deleteAction, { height: CAT_ROW_H }]}
           onPress={() => { swipeRef.current?.close(); onDelete(); }}
           activeOpacity={0.8}
         >
@@ -338,17 +576,17 @@ function CatRow({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void; 
       overshootRight={false}
       friction={2}
     >
-      <TouchableOpacity style={s.catRow} onPress={onEdit} activeOpacity={0.8}>
-        <View style={[s.catIcon, { backgroundColor: hexToRgba(cat.color, 0.15) }]}>
+      <TouchableOpacity style={styles.catRow} onPress={onEdit} activeOpacity={0.8}>
+        <View style={[styles.catIcon, { backgroundColor: hexToRgba(cat.color, 0.15) }]}>
           <MaterialCommunityIcons name={cat.icon as IconName} size={18} color={cat.color} />
         </View>
-        <Text style={s.catName} numberOfLines={1}>{cat.name}</Text>
+        <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
         {isSystem && (
-          <View style={s.systemBadge}>
-            <Text style={s.systemBadgeText}>System</Text>
+          <View style={styles.systemBadge}>
+            <Text style={styles.systemBadgeText}>System</Text>
           </View>
         )}
-        <MaterialCommunityIcons name="chevron-right" size={18} color={DS.text.muted} />
+        <MaterialCommunityIcons name="chevron-right" size={18} color={ds.text.muted} />
       </TouchableOpacity>
     </Swipeable>
   );
@@ -364,6 +602,8 @@ interface PINModalProps {
 
 function PINModal({ visible, onClose, onSuccess }: PINModalProps) {
   const insets      = useSafeAreaInsets();
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const [stage, setStage] = useState<'enter' | 'confirm'>('enter');
   const [first, setFirst] = useState('');
   const [current, setCurrent] = useState('');
@@ -399,56 +639,56 @@ function PINModal({ visible, onClose, onSuccess }: PINModalProps) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { reset(); onClose(); }}>
-      <View style={[pm.overlay, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={pm.container}>
+      <View style={[styles.pmOverlay, { paddingBottom: insets.bottom + 20 }]}>
+        <View style={styles.pmContainer}>
           {/* Header */}
-          <View style={pm.header}>
+          <View style={styles.pmHeader}>
             <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
-              <MaterialCommunityIcons name="close" size={24} color={DS.text.secondary} />
+              <MaterialCommunityIcons name="close" size={24} color={ds.text.secondary} />
             </TouchableOpacity>
           </View>
 
-          <Text style={pm.title}>
+          <Text style={styles.pmTitle}>
             {stage === 'enter' ? 'Set your PIN' : 'Confirm your PIN'}
           </Text>
-          <Text style={pm.subtitle}>
+          <Text style={styles.pmSubtitle}>
             {stage === 'enter' ? 'Enter a 4-digit PIN to lock the app' : 'Enter the same PIN again to confirm'}
           </Text>
 
           {/* Dots */}
-          <View style={pm.dots}>
+          <View style={styles.pmDots}>
             {Array.from({ length: PIN_LENGTH }).map((_, i) => (
               <View
                 key={i}
-                style={[pm.dot, i < current.length && pm.dotFilled]}
+                style={[styles.pmDot, i < current.length && styles.pmDotFilled]}
               />
             ))}
           </View>
 
           {/* Keypad */}
-          <View style={pm.keypad}>
+          <View style={styles.pmKeypad}>
             {keys.map((key, i) => {
-              if (key === null) return <View key={i} style={pm.keyCell} />;
+              if (key === null) return <View key={i} style={styles.pmKeyCell} />;
               if (key === '⌫') {
                 return (
                   <TouchableOpacity
                     key={i}
-                    style={pm.keyCell}
+                    style={styles.pmKeyCell}
                     onPress={handleBack}
                     activeOpacity={0.7}
                   >
-                    <MaterialCommunityIcons name="backspace-outline" size={24} color={DS.text.secondary} />
+                    <MaterialCommunityIcons name="backspace-outline" size={24} color={ds.text.secondary} />
                   </TouchableOpacity>
                 );
               }
               return (
                 <TouchableOpacity
                   key={i}
-                  style={pm.keyCell}
+                  style={styles.pmKeyCell}
                   onPress={() => handleKey(key)}
                   activeOpacity={0.7}
                 >
-                  <Text style={pm.keyText}>{key}</Text>
+                  <Text style={styles.pmKeyText}>{key}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -476,22 +716,25 @@ function SettingsRow({
   destructive?: boolean;
   right?: React.ReactNode;
 }) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   return (
     <TouchableOpacity
-      style={s.row}
+      style={styles.row}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
       disabled={!onPress && !right}
     >
-      <View style={[s.rowIcon, destructive && { backgroundColor: hexToRgba(DS.secondary, 0.12) }]}>
-        <MaterialCommunityIcons name={icon} size={19} color={destructive ? DS.secondaryLight : DS.text.secondary} />
+      <View style={[styles.rowIcon, destructive && { backgroundColor: hexToRgba(ds.secondary, 0.12) }]}>
+        <MaterialCommunityIcons name={icon} size={19} color={destructive ? ds.secondaryLight : ds.text.secondary} />
       </View>
-      <Text style={[s.rowLabel, destructive && { color: DS.secondaryLight }]}>{label}</Text>
+      <Text style={[styles.rowLabel, destructive && { color: ds.secondaryLight }]}>{label}</Text>
       {right != null ? right : value != null ? (
-        <Text style={s.rowValue}>{value}</Text>
+        <Text style={styles.rowValue}>{value}</Text>
       ) : null}
       {onPress != null && right == null && (
-        <MaterialCommunityIcons name="chevron-right" size={18} color={DS.text.muted} />
+        <MaterialCommunityIcons name="chevron-right" size={18} color={ds.text.muted} />
       )}
     </TouchableOpacity>
   );
@@ -502,6 +745,8 @@ function SettingsRow({
 export default function SettingsScreen() {
   const insets     = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
 
   const { currencyCode, currencySymbol, theme, pinEnabled, driveConnected, lastBackupAt, saveToDb, loadFromDB } = useSettingsStore();
   const { loadFromDB: loadCategories } = useCategoriesStore();
@@ -607,27 +852,27 @@ export default function SettingsScreen() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Settings</Text>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
       </View>
 
       <ScrollView
-        style={s.scroll}
-        contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 80 }]}
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
       >
 
         {/* ── PREFERENCES ── */}
-        <Text style={s.sectionLabel}>Preferences</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Preferences</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow
             icon="currency-inr"
             label="Currency"
             value={`${currencyCode}  ${currencySymbol}`}
             onPress={() => setShowCurrency(true)}
           />
-          <View style={s.rowDivider} />
+          <View style={styles.rowDivider} />
           <SettingsRow
             icon="theme-light-dark"
             label="Theme"
@@ -637,14 +882,14 @@ export default function SettingsScreen() {
         </AppCard>
 
         {/* ── MANAGEMENT ── */}
-        <Text style={s.sectionLabel}>Management</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Management</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow
             icon="tag-multiple-outline"
             label="Manage Categories"
             onPress={() => setView('categories')}
           />
-          <View style={s.rowDivider} />
+          <View style={styles.rowDivider} />
           <SettingsRow
             icon="wallet-outline"
             label="Manage Accounts"
@@ -653,8 +898,8 @@ export default function SettingsScreen() {
         </AppCard>
 
         {/* ── ACCOUNT ── */}
-        <Text style={s.sectionLabel}>Account</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Account</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow
             icon="google-drive"
             label="Google Drive Sync"
@@ -664,14 +909,14 @@ export default function SettingsScreen() {
                 onValueChange={() =>
                   Alert.alert('Coming in Phase 3', 'Google Drive sync will be available soon.')
                 }
-                trackColor={{ true: DS.primary, false: DS.surface.elevated }}
-                thumbColor={driveConnected === 1 ? DS.primaryLight : DS.text.muted}
+                trackColor={{ true: ds.primary, false: ds.surface.elevated }}
+                thumbColor={driveConnected === 1 ? ds.primaryLight : ds.text.muted}
               />
             }
           />
           {driveConnected === 1 && (
             <>
-              <View style={s.rowDivider} />
+              <View style={styles.rowDivider} />
               <SettingsRow
                 icon="backup-restore"
                 label="Last Backup"
@@ -682,8 +927,8 @@ export default function SettingsScreen() {
         </AppCard>
 
         {/* ── SECURITY ── */}
-        <Text style={s.sectionLabel}>Security</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Security</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow
             icon="lock-outline"
             label="App Lock (PIN)"
@@ -691,14 +936,14 @@ export default function SettingsScreen() {
               <Switch
                 value={isLockOn}
                 onValueChange={handleLockToggle}
-                trackColor={{ true: DS.primary, false: DS.surface.elevated }}
-                thumbColor={isLockOn ? DS.primaryLight : DS.text.muted}
+                trackColor={{ true: ds.primary, false: ds.surface.elevated }}
+                thumbColor={isLockOn ? ds.primaryLight : ds.text.muted}
               />
             }
           />
           {isLockOn && (
             <>
-              <View style={s.rowDivider} />
+              <View style={styles.rowDivider} />
               <SettingsRow
                 icon="pencil-outline"
                 label="Change PIN"
@@ -709,14 +954,14 @@ export default function SettingsScreen() {
         </AppCard>
 
         {/* ── DATA ── */}
-        <Text style={s.sectionLabel}>Data</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Data</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow
             icon="database-export-outline"
             label="Export Data"
             onPress={() => navigation.navigate('ExportScreen')}
           />
-          <View style={s.rowDivider} />
+          <View style={styles.rowDivider} />
           <SettingsRow
             icon="delete-forever-outline"
             label={clearing ? 'Clearing…' : 'Clear All Data'}
@@ -726,10 +971,10 @@ export default function SettingsScreen() {
         </AppCard>
 
         {/* ── INFO ── */}
-        <Text style={s.sectionLabel}>Info</Text>
-        <AppCard padding={0} style={s.card}>
+        <Text style={styles.sectionLabel}>Info</Text>
+        <AppCard padding={0} style={styles.card}>
           <SettingsRow icon="information-outline" label="Version" value="1.0.0" />
-          <View style={s.rowDivider} />
+          <View style={styles.rowDivider} />
           <SettingsRow
             icon="help-circle-outline"
             label="Help & Feedback"
@@ -741,25 +986,25 @@ export default function SettingsScreen() {
 
       {/* ── Currency picker ── */}
       <BottomSheet visible={showCurrency} onClose={() => setShowCurrency(false)} title="Select Currency">
-        <ScrollView style={s.currencyList} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
           {CURRENCIES.map(cur => {
             const selected = cur.code === currencyCode;
             return (
               <TouchableOpacity
                 key={cur.code}
-                style={[s.currencyRow, selected && s.currencyRowActive]}
+                style={[styles.currencyRow, selected && styles.currencyRowActive]}
                 onPress={() => handleCurrencySelect(cur.code, cur.symbol)}
                 activeOpacity={0.8}
               >
-                <Text style={[s.currencySymbol, { color: selected ? DS.primary : DS.text.muted }]}>
+                <Text style={[styles.currencySymbol, { color: selected ? ds.primary : ds.text.muted }]}>
                   {cur.symbol}
                 </Text>
-                <View style={s.currencyInfo}>
-                  <Text style={[s.currencyCode, selected && { color: DS.primary }]}>{cur.code}</Text>
-                  <Text style={s.currencyName}>{cur.name}</Text>
+                <View style={styles.currencyInfo}>
+                  <Text style={[styles.currencyCode, selected && { color: ds.primary }]}>{cur.code}</Text>
+                  <Text style={styles.currencyName}>{cur.name}</Text>
                 </View>
                 {selected && (
-                  <MaterialCommunityIcons name="check-circle" size={20} color={DS.primary} />
+                  <MaterialCommunityIcons name="check-circle" size={20} color={ds.primary} />
                 )}
               </TouchableOpacity>
             );
@@ -770,21 +1015,21 @@ export default function SettingsScreen() {
 
       {/* ── Theme picker ── */}
       <BottomSheet visible={showTheme} onClose={() => setShowTheme(false)} title="App Theme">
-        <View style={s.themeOptions}>
+        <View style={styles.themeOptions}>
           {THEME_OPTIONS.map(opt => {
             const active = theme === opt.value;
             return (
               <TouchableOpacity
                 key={opt.value}
-                style={[s.themeOption, active && s.themeOptionActive]}
+                style={[styles.themeOption, active && styles.themeOptionActive]}
                 onPress={() => handleThemeSelect(opt.value)}
                 activeOpacity={0.8}
               >
-                <View style={[s.themeIconWrap, active && { backgroundColor: hexToRgba(DS.primary, 0.15) }]}>
-                  <MaterialCommunityIcons name={opt.icon} size={24} color={active ? DS.primary : DS.text.secondary} />
+                <View style={[styles.themeIconWrap, active && { backgroundColor: hexToRgba(ds.primary, 0.15) }]}>
+                  <MaterialCommunityIcons name={opt.icon} size={24} color={active ? ds.primary : ds.text.secondary} />
                 </View>
-                <Text style={[s.themeOptionText, active && { color: DS.primary }]}>{opt.label}</Text>
-                {active && <MaterialCommunityIcons name="check-circle" size={18} color={DS.primary} />}
+                <Text style={[styles.themeOptionText, active && { color: ds.primary }]}>{opt.label}</Text>
+                {active && <MaterialCommunityIcons name="check-circle" size={18} color={ds.primary} />}
               </TouchableOpacity>
             );
           })}
@@ -800,237 +1045,3 @@ export default function SettingsScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  header: {
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: DS.border.subtle,
-  },
-  headerTitle: {
-    fontFamily: 'Inter_700Bold', fontSize: 24, lineHeight: 32,
-    letterSpacing: -0.48, color: DS.text.primary,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  addIconBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 8 },
-
-  sectionLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 15,
-    letterSpacing: 0.8, textTransform: 'uppercase',
-    color: DS.text.muted, marginBottom: 4, marginLeft: 4, marginTop: 8,
-  },
-
-  card: { overflow: 'hidden' },
-
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14, gap: 12,
-  },
-  rowIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  rowLabel: {
-    flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: DS.text.primary,
-  },
-  rowValue: {
-    fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, color: DS.text.muted,
-  },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth, backgroundColor: DS.border.subtle, marginLeft: 62,
-  },
-
-  deleteAction: {
-    width: 68, backgroundColor: DS.secondary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  // Currency picker
-  currencyList: { maxHeight: 400, paddingHorizontal: 4 },
-  currencyRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14, gap: 14,
-    borderRadius: DS.radius.md,
-  },
-  currencyRowActive: { backgroundColor: hexToRgba(DS.primary, 0.08) },
-  currencySymbol: {
-    fontFamily: 'Inter_700Bold', fontSize: 18, lineHeight: 24, width: 32, textAlign: 'center',
-  },
-  currencyInfo: { flex: 1, gap: 2 },
-  currencyCode: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 15, lineHeight: 20, color: DS.text.primary,
-  },
-  currencyName: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted,
-  },
-
-  // Theme options
-  themeOptions: { padding: 20, gap: 10 },
-  themeOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 16, borderRadius: DS.radius.lg,
-    borderWidth: 1.5, borderColor: DS.border.subtle,
-  },
-  themeOptionActive: { borderColor: DS.primary, backgroundColor: hexToRgba(DS.primary, 0.06) },
-  themeIconWrap: {
-    width: 40, height: 40, borderRadius: DS.radius.lg,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  themeOptionText: {
-    flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.primary,
-  },
-
-  // Categories view
-  tabRow: {
-    flexDirection: 'row', padding: 12, gap: 8,
-    borderBottomWidth: 1, borderBottomColor: DS.border.subtle,
-  },
-  tabBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: DS.radius.md,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center',
-  },
-  tabBtnActive: { backgroundColor: DS.primary },
-  tabBtnText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: DS.text.muted,
-  },
-  tabBtnTextActive: { color: '#fff' },
-
-  catRow: {
-    flexDirection: 'row', alignItems: 'center',
-    height: 62, paddingHorizontal: 16, gap: 12,
-    backgroundColor: DS.surface.screen,
-  },
-  catIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  catName: {
-    flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 20, color: DS.text.primary,
-  },
-  systemBadge: {
-    backgroundColor: DS.surface.elevated, borderRadius: DS.radius.full,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  systemBadgeText: {
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: DS.text.muted,
-  },
-
-  divider: {
-    height: StyleSheet.hairlineWidth, backgroundColor: DS.border.subtle,
-  },
-
-  // Sheet / form
-  sheetContent: { padding: 20, gap: 6, paddingBottom: 8 },
-  fieldLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14,
-    letterSpacing: 0.5, textTransform: 'uppercase', color: DS.text.muted, marginTop: 10,
-  },
-  input: {
-    height: 44, backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md, borderWidth: 1, borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    fontFamily: 'Inter_400Regular', fontSize: 15, color: DS.text.primary,
-  },
-  typeRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  typeChip: {
-    flex: 1, alignItems: 'center', paddingVertical: 8,
-    borderRadius: DS.radius.md, borderWidth: 1.5, borderColor: DS.border.medium,
-  },
-  typeChipText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: DS.text.secondary,
-  },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  iconCell: {
-    width: 42, height: 42, borderRadius: DS.radius.md,
-    borderWidth: 1.5, borderColor: DS.border.subtle,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  colorRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  swatch: { width: 30, height: 30, borderRadius: 15 },
-  swatchSelected: { borderWidth: 3, borderColor: '#fff' },
-  ctaBtn: {
-    marginTop: 16, height: 52, borderRadius: DS.radius.lg,
-    backgroundColor: DS.primary, alignItems: 'center', justifyContent: 'center',
-  },
-  ctaBtnDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
-
-  emptyBox: { alignItems: 'center', gap: 8, paddingVertical: 40 },
-  emptyTitle: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.secondary,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: DS.text.muted,
-  },
-});
-
-// ── PIN Modal styles ──────────────────────────────────────────────────────────
-
-const pm = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end',
-  },
-  container: {
-    backgroundColor: DS.surface.card,
-    borderTopLeftRadius: DS.radius.xl,
-    borderTopRightRadius: DS.radius.xl,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingTop: 12, paddingHorizontal: 24, paddingBottom: 24,
-    ...DS.shadow.modal,
-  },
-  header: {
-    alignItems: 'flex-end', marginBottom: 8,
-  },
-  title: {
-    fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28,
-    letterSpacing: -0.4, color: DS.text.primary,
-    textAlign: 'center', marginBottom: 8,
-  },
-  subtitle: {
-    fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20,
-    color: DS.text.muted, textAlign: 'center', marginBottom: 28,
-  },
-  dots: {
-    flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 36,
-  },
-  dot: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 2, borderColor: DS.border.medium,
-    backgroundColor: 'transparent',
-  },
-  dotFilled: {
-    backgroundColor: DS.primary, borderColor: DS.primary,
-  },
-  keypad: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 0,
-  },
-  keyCell: {
-    width: '33.33%', aspectRatio: 1.6,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  keyText: {
-    fontFamily: 'Inter_400Regular', fontSize: 26, lineHeight: 32, color: DS.text.primary,
-  },
-});

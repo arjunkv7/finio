@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSavingsStore, GoalWithProgress } from '../store/savingsStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -74,6 +75,295 @@ const formatBal = (paise: number): string =>
     maximumFractionDigits: 2,
   });
 
+// ── Style factories ───────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    headerTitle: {
+      flex: 1,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 24,
+      lineHeight: 32,
+      letterSpacing: -0.48,
+      color: ds.text.primary,
+    },
+    badgeWrap: {
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderRadius: ds.radius.full,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    badge: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.primaryLight,
+    },
+    backBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    headerIcon: {
+      width: 32, height: 32, borderRadius: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    scroll: { flex: 1 },
+    scrollContent: { padding: 16, gap: 12 },
+
+    // Hero
+    heroCard: {},
+    heroLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.6, textTransform: 'uppercase', color: ds.text.muted, marginBottom: 4,
+    },
+    heroAmount: {
+      fontFamily: 'Inter_700Bold', fontSize: 36, lineHeight: 44,
+      letterSpacing: -1.2, color: ds.primary, marginBottom: 16,
+    },
+    heroRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingTop: 14, borderTopWidth: 1, borderTopColor: ds.border.subtle,
+    },
+    heroStat: { flex: 1, alignItems: 'center' },
+    heroStatVal: {
+      fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28, color: ds.text.primary,
+    },
+    heroStatLbl: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted, marginTop: 2,
+    },
+    heroStatDivider: { width: 1, height: 32, backgroundColor: ds.border.subtle },
+
+    // Section label
+    sectionLabel: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.6, textTransform: 'uppercase', color: ds.text.muted,
+      marginLeft: 2, marginTop: 4, marginBottom: -4,
+    },
+
+    // Goal card
+    goalCard: {},
+    goalCardDimmed: { opacity: 0.6 },
+    goalCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    goalIconWrap: {
+      width: 44, height: 44, borderRadius: ds.radius.lg,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    goalCardInfo: { flex: 1, gap: 2 },
+    goalName: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.primary,
+    },
+    goalDays: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted,
+    },
+    pctBadge: {
+      borderRadius: ds.radius.full, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    pctText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+    },
+    goalCardBottom: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      alignItems: 'center', marginTop: 10,
+    },
+    goalSaved: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: ds.text.primary,
+    },
+    goalTarget: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted,
+    },
+
+    // Empty state
+    emptyBox: { alignItems: 'center', gap: 10, paddingVertical: 48 },
+    emptyTitle: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.secondary,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: ds.text.muted, textAlign: 'center',
+    },
+
+    // FAB
+    fab: {
+      position: 'absolute', right: 20,
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: ds.primary,
+      alignItems: 'center', justifyContent: 'center',
+      ...ds.shadow.modal,
+    },
+
+    // Sheet / form
+    sheetContent: { padding: 20, gap: 8, paddingBottom: 8 },
+    fieldLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
+      letterSpacing: 0.4, textTransform: 'uppercase',
+      color: ds.text.muted, marginTop: 8,
+    },
+    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    currencyPrefix: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: ds.text.secondary,
+    },
+    input: {
+      flex: 1,
+      height: 44,
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      color: ds.text.primary,
+    },
+    textArea: { height: 72, paddingTop: 10, textAlignVertical: 'top' },
+    dateRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      height: 44, backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md, borderWidth: 1,
+      borderColor: ds.border.subtle, paddingHorizontal: 14,
+    },
+    dateText: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular', fontSize: 15, color: ds.text.primary,
+    },
+    ctaBtn: {
+      marginTop: 16,
+      height: 52, borderRadius: ds.radius.lg,
+      backgroundColor: ds.primary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    ctaBtnDisabled: { opacity: 0.5 },
+    ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
+
+    // Icon grid
+    iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    iconCell: {
+      width: '18%',
+      aspectRatio: 1,
+      borderRadius: ds.radius.md,
+      borderWidth: 1.5,
+      borderColor: ds.border.subtle,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+    },
+    iconLabel: {
+      fontFamily: 'Inter_400Regular', fontSize: 9, lineHeight: 12,
+      color: ds.text.muted, textAlign: 'center',
+    },
+
+    // Color row
+    colorRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+    swatch: { width: 32, height: 32, borderRadius: 16 },
+    swatchSelected: { borderWidth: 3, borderColor: '#fff' },
+
+    // Detail header
+    detailHero: { padding: 16, paddingBottom: 0 },
+    amountsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    amountLabel: {
+      fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14,
+      textTransform: 'uppercase', letterSpacing: 0.4, color: ds.text.muted, marginBottom: 2,
+    },
+    amountBig: {
+      fontFamily: 'Inter_700Bold', fontSize: 28, lineHeight: 36, letterSpacing: -0.8,
+    },
+    amountSecondary: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 18, lineHeight: 24, color: ds.text.secondary,
+    },
+    daysText: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted,
+      marginTop: 10,
+    },
+    completedBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
+    },
+    completedText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: ds.primaryLight,
+    },
+
+    contribSectionHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
+    },
+    addContribBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: ds.primary, borderRadius: ds.radius.full,
+      paddingHorizontal: 12, paddingVertical: 6,
+    },
+    addContribText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#fff',
+    },
+    contribList: { paddingHorizontal: 16 },
+    contribRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 14, gap: 12,
+    },
+    contribDot: { width: 8, height: 8, borderRadius: 4, marginTop: 2 },
+    contribBody: { flex: 1, gap: 2 },
+    contribAmount: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22,
+    },
+    contribNote: {
+      fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: ds.text.muted,
+    },
+    contribMeta: { alignItems: 'flex-end', gap: 6 },
+    contribDate: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: ds.text.muted,
+    },
+    contribDivider: {
+      height: StyleSheet.hairlineWidth, backgroundColor: ds.border.subtle,
+    },
+  });
+}
+
+function makeCalStyles(ds: DSType) {
+  return StyleSheet.create({
+    wrap: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.lg,
+      padding: 12,
+      marginTop: 8,
+    },
+    nav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    navBtn: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: ds.surface.highest,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    navLabel: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: ds.text.primary,
+    },
+    row: { flexDirection: 'row', marginBottom: 6 },
+    dayH: {
+      flex: 1, textAlign: 'center',
+      fontFamily: 'Inter_500Medium', fontSize: 11, color: ds.text.muted,
+    },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+    selectedCell: { backgroundColor: ds.primary, borderRadius: 20 },
+    dayText: {
+      fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.secondary,
+    },
+    todayText: { fontFamily: 'Inter_700Bold', color: ds.primary },
+    selectedText: { fontFamily: 'Inter_700Bold', color: '#fff' },
+  });
+}
+
 // ── Inline Calendar (used inside BottomSheet forms) ──────────────────────────
 
 function InlineCalendar({
@@ -83,6 +373,9 @@ function InlineCalendar({
   value: Date;
   onSelect: (d: Date) => void;
 }) {
+  const ds = useDS();
+  const cal = useMemo(() => makeCalStyles(ds), [ds]);
+
   const [viewYear, setViewYear]   = useState(value.getFullYear());
   const [viewMonth, setViewMonth] = useState(value.getMonth());
 
@@ -109,11 +402,11 @@ function InlineCalendar({
       {/* Month nav */}
       <View style={cal.nav}>
         <TouchableOpacity onPress={goPrev} style={cal.navBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chevron-left" size={20} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="chevron-left" size={20} color={ds.text.secondary} />
         </TouchableOpacity>
         <Text style={cal.navLabel}>{MONTHS_FULL[viewMonth]} {viewYear}</Text>
         <TouchableOpacity onPress={goNext} style={cal.navBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -162,6 +455,9 @@ interface GoalDetailProps {
 }
 
 function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
   const insets = useSafeAreaInsets();
   const { goals, activeGoalContributions, selectGoal, addContribution, deleteContribution } = useSavingsStore();
   const { currencySymbol } = useSettingsStore();
@@ -217,7 +513,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
 
   if (!goal) return null;
 
-  const accent       = goal.color ?? DS.primary;
+  const accent       = goal.color ?? ds.primary;
   const isCompleted  = goal.is_completed === 1;
   const iconName     = (goal.icon ?? 'piggy-bank') as IconName;
 
@@ -226,14 +522,14 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
       {/* ── Header ── */}
       <View style={s.header}>
         <TouchableOpacity onPress={onBack} style={s.backBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={DS.text.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={ds.text.primary} />
         </TouchableOpacity>
         <View style={[s.headerIcon, { backgroundColor: hexToRgba(accent, 0.2) }]}>
           <MaterialCommunityIcons name={iconName} size={18} color={accent} />
         </View>
         <Text style={s.headerTitle} numberOfLines={1}>{goal.name}</Text>
         {isCompleted && (
-          <MaterialCommunityIcons name="check-circle" size={22} color={DS.primary} />
+          <MaterialCommunityIcons name="check-circle" size={22} color={ds.primary} />
         )}
       </View>
 
@@ -274,7 +570,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
           )}
           {isCompleted && (
             <View style={s.completedBadge}>
-              <MaterialCommunityIcons name="check-circle" size={14} color={DS.primaryLight} />
+              <MaterialCommunityIcons name="check-circle" size={14} color={ds.primaryLight} />
               <Text style={s.completedText}>Goal completed!</Text>
             </View>
           )}
@@ -304,7 +600,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
         contentContainerStyle={[s.contribList, { paddingBottom: insets.bottom + 80 }]}
         ListEmptyComponent={
           <View style={s.emptyBox}>
-            <MaterialCommunityIcons name="piggy-bank-outline" size={36} color={DS.text.muted} />
+            <MaterialCommunityIcons name="piggy-bank-outline" size={36} color={ds.text.muted} />
             <Text style={s.emptyTitle}>No contributions yet</Text>
             {!isCompleted && (
               <Text style={s.emptyHint}>Tap "Add" to record your first deposit</Text>
@@ -327,7 +623,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MaterialCommunityIcons name="trash-can-outline" size={15} color={DS.text.muted} />
+                <MaterialCommunityIcons name="trash-can-outline" size={15} color={ds.text.muted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -356,7 +652,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor={DS.text.muted}
+                placeholderTextColor={ds.text.muted}
                 autoFocus
               />
             </View>
@@ -368,9 +664,9 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
               onPress={() => setShowCal(c => !c)}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="calendar" size={18} color={DS.text.muted} />
+              <MaterialCommunityIcons name="calendar" size={18} color={ds.text.muted} />
               <Text style={s.dateText}>{toDateStr(date) === toDateStr(new Date()) ? 'Today' : formatDateLocal(toDateStr(date))}</Text>
-              <MaterialCommunityIcons name={showCal ? 'chevron-up' : 'chevron-down'} size={18} color={DS.text.muted} />
+              <MaterialCommunityIcons name={showCal ? 'chevron-up' : 'chevron-down'} size={18} color={ds.text.muted} />
             </TouchableOpacity>
             {showCal && (
               <InlineCalendar
@@ -386,7 +682,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
               value={note}
               onChangeText={setNote}
               placeholder="e.g. Monthly deposit"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               multiline
               numberOfLines={2}
             />
@@ -409,6 +705,9 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
 // ── SavingsScreen ─────────────────────────────────────────────────────────────
 
 export default function SavingsScreen() {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
   const insets = useSafeAreaInsets();
   const { goals, isLoading, loadFromDB, addGoal } = useSavingsStore();
   const { currencySymbol } = useSettingsStore();
@@ -466,7 +765,7 @@ export default function SavingsScreen() {
   };
 
   const renderGoalCard = (goal: GoalWithProgress, dimmed = false) => {
-    const accent      = goal.color ?? DS.primary;
+    const accent      = goal.color ?? ds.primary;
     const iconName    = (goal.icon ?? 'piggy-bank') as IconName;
     const isCompleted = goal.is_completed === 1;
 
@@ -495,7 +794,7 @@ export default function SavingsScreen() {
               )}
             </View>
             {isCompleted ? (
-              <MaterialCommunityIcons name="check-circle" size={24} color={DS.primary} />
+              <MaterialCommunityIcons name="check-circle" size={24} color={ds.primary} />
             ) : (
               <View style={[s.pctBadge, { backgroundColor: hexToRgba(accent, 0.15) }]}>
                 <Text style={[s.pctText, { color: accent }]}>{goal.percent}%</Text>
@@ -508,7 +807,7 @@ export default function SavingsScreen() {
             <ProgressBar
               value={goal.contributed}
               max={goal.target_amount}
-              color={isCompleted ? DS.primary : accent}
+              color={isCompleted ? ds.primary : accent}
               height={6}
             />
           </View>
@@ -542,7 +841,7 @@ export default function SavingsScreen() {
         contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={loadFromDB} tintColor={DS.primary} colors={[DS.primary]} />
+          <RefreshControl refreshing={isLoading} onRefresh={loadFromDB} tintColor={ds.primary} colors={[ds.primary]} />
         }
       >
         {/* ── Total saved hero ── */}
@@ -581,7 +880,7 @@ export default function SavingsScreen() {
         {/* ── Empty state ── */}
         {goals.filter(g => g.is_deleted === 0).length === 0 && (
           <View style={s.emptyBox}>
-            <MaterialCommunityIcons name="piggy-bank-outline" size={48} color={DS.text.muted} />
+            <MaterialCommunityIcons name="piggy-bank-outline" size={48} color={ds.text.muted} />
             <Text style={s.emptyTitle}>No savings goals yet</Text>
             <Text style={s.emptyHint}>Tap + below to create your first goal</Text>
           </View>
@@ -616,7 +915,7 @@ export default function SavingsScreen() {
               value={goalName}
               onChangeText={setGoalName}
               placeholder="e.g. Emergency fund"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               autoFocus
             />
 
@@ -630,7 +929,7 @@ export default function SavingsScreen() {
                 onChangeText={setGoalTarget}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor={DS.text.muted}
+                placeholderTextColor={ds.text.muted}
               />
             </View>
 
@@ -641,7 +940,7 @@ export default function SavingsScreen() {
               onPress={() => setShowDateCal(c => !c)}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="calendar" size={18} color={DS.text.muted} />
+              <MaterialCommunityIcons name="calendar" size={18} color={ds.text.muted} />
               <Text style={s.dateText}>
                 {goalDate ? formatDateLocal(toDateStr(goalDate)) : 'No date set'}
               </Text>
@@ -651,10 +950,10 @@ export default function SavingsScreen() {
                     onPress={(e) => { e.stopPropagation(); setGoalDate(null); setShowDateCal(false); }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <MaterialCommunityIcons name="close-circle" size={16} color={DS.text.muted} />
+                    <MaterialCommunityIcons name="close-circle" size={16} color={ds.text.muted} />
                   </TouchableOpacity>
                 )}
-                <MaterialCommunityIcons name={showDateCal ? 'chevron-up' : 'chevron-down'} size={18} color={DS.text.muted} />
+                <MaterialCommunityIcons name={showDateCal ? 'chevron-up' : 'chevron-down'} size={18} color={ds.text.muted} />
               </View>
             </TouchableOpacity>
             {showDateCal && (
@@ -676,7 +975,7 @@ export default function SavingsScreen() {
                     onPress={() => setGoalIcon(icon)}
                     activeOpacity={0.7}
                   >
-                    <MaterialCommunityIcons name={icon} size={22} color={selected ? goalColor : DS.text.secondary} />
+                    <MaterialCommunityIcons name={icon} size={22} color={selected ? goalColor : ds.text.secondary} />
                     <Text style={[s.iconLabel, selected && { color: goalColor }]}>{label}</Text>
                   </TouchableOpacity>
                 );
@@ -710,290 +1009,3 @@ export default function SavingsScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    lineHeight: 32,
-    letterSpacing: -0.48,
-    color: DS.text.primary,
-  },
-  badgeWrap: {
-    backgroundColor: hexToRgba(DS.primary, 0.12),
-    borderRadius: DS.radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  badge: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.primaryLight,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerIcon: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 12 },
-
-  // Hero
-  heroCard: {},
-  heroLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.6, textTransform: 'uppercase', color: DS.text.muted, marginBottom: 4,
-  },
-  heroAmount: {
-    fontFamily: 'Inter_700Bold', fontSize: 36, lineHeight: 44,
-    letterSpacing: -1.2, color: DS.primary, marginBottom: 16,
-  },
-  heroRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingTop: 14, borderTopWidth: 1, borderTopColor: DS.border.subtle,
-  },
-  heroStat: { flex: 1, alignItems: 'center' },
-  heroStatVal: {
-    fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28, color: DS.text.primary,
-  },
-  heroStatLbl: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted, marginTop: 2,
-  },
-  heroStatDivider: { width: 1, height: 32, backgroundColor: DS.border.subtle },
-
-  // Section label
-  sectionLabel: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.6, textTransform: 'uppercase', color: DS.text.muted,
-    marginLeft: 2, marginTop: 4, marginBottom: -4,
-  },
-
-  // Goal card
-  goalCard: {},
-  goalCardDimmed: { opacity: 0.6 },
-  goalCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  goalIconWrap: {
-    width: 44, height: 44, borderRadius: DS.radius.lg,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  goalCardInfo: { flex: 1, gap: 2 },
-  goalName: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.primary,
-  },
-  goalDays: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted,
-  },
-  pctBadge: {
-    borderRadius: DS.radius.full, paddingHorizontal: 10, paddingVertical: 4,
-  },
-  pctText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
-  },
-  goalCardBottom: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 10,
-  },
-  goalSaved: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: DS.text.primary,
-  },
-  goalTarget: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted,
-  },
-
-  // Empty state
-  emptyBox: { alignItems: 'center', gap: 10, paddingVertical: 48 },
-  emptyTitle: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.secondary,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: DS.text.muted, textAlign: 'center',
-  },
-
-  // FAB
-  fab: {
-    position: 'absolute', right: 20,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: DS.primary,
-    alignItems: 'center', justifyContent: 'center',
-    ...DS.shadow.modal,
-  },
-
-  // Sheet / form
-  sheetContent: { padding: 20, gap: 8, paddingBottom: 8 },
-  fieldLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 16,
-    letterSpacing: 0.4, textTransform: 'uppercase',
-    color: DS.text.muted, marginTop: 8,
-  },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  currencyPrefix: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: DS.text.secondary,
-  },
-  input: {
-    flex: 1,
-    height: 44,
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: DS.text.primary,
-  },
-  textArea: { height: 72, paddingTop: 10, textAlignVertical: 'top' },
-  dateRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    height: 44, backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md, borderWidth: 1,
-    borderColor: DS.border.subtle, paddingHorizontal: 14,
-  },
-  dateText: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular', fontSize: 15, color: DS.text.primary,
-  },
-  ctaBtn: {
-    marginTop: 16,
-    height: 52, borderRadius: DS.radius.lg,
-    backgroundColor: DS.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ctaBtnDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
-
-  // Icon grid
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  iconCell: {
-    width: '18%',
-    aspectRatio: 1,
-    borderRadius: DS.radius.md,
-    borderWidth: 1.5,
-    borderColor: DS.border.subtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  iconLabel: {
-    fontFamily: 'Inter_400Regular', fontSize: 9, lineHeight: 12,
-    color: DS.text.muted, textAlign: 'center',
-  },
-
-  // Color row
-  colorRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  swatch: { width: 32, height: 32, borderRadius: 16 },
-  swatchSelected: { borderWidth: 3, borderColor: '#fff' },
-
-  // Detail header
-  detailHero: { padding: 16, paddingBottom: 0 },
-  amountsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  amountLabel: {
-    fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14,
-    textTransform: 'uppercase', letterSpacing: 0.4, color: DS.text.muted, marginBottom: 2,
-  },
-  amountBig: {
-    fontFamily: 'Inter_700Bold', fontSize: 28, lineHeight: 36, letterSpacing: -0.8,
-  },
-  amountSecondary: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 18, lineHeight: 24, color: DS.text.secondary,
-  },
-  daysText: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted,
-    marginTop: 10,
-  },
-  completedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
-  },
-  completedText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18, color: DS.primaryLight,
-  },
-
-  contribSectionHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
-  },
-  addContribBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: DS.primary, borderRadius: DS.radius.full,
-    paddingHorizontal: 12, paddingVertical: 6,
-  },
-  addContribText: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#fff',
-  },
-  contribList: { paddingHorizontal: 16 },
-  contribRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, gap: 12,
-  },
-  contribDot: { width: 8, height: 8, borderRadius: 4, marginTop: 2 },
-  contribBody: { flex: 1, gap: 2 },
-  contribAmount: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22,
-  },
-  contribNote: {
-    fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18, color: DS.text.muted,
-  },
-  contribMeta: { alignItems: 'flex-end', gap: 6 },
-  contribDate: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: DS.text.muted,
-  },
-  contribDivider: {
-    height: StyleSheet.hairlineWidth, backgroundColor: DS.border.subtle,
-  },
-});
-
-// ── Calendar styles ──────────────────────────────────────────────────────────
-
-const cal = StyleSheet.create({
-  wrap: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.lg,
-    padding: 12,
-    marginTop: 8,
-  },
-  nav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  navBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: DS.surface.highest,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navLabel: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: DS.text.primary,
-  },
-  row: { flexDirection: 'row', marginBottom: 6 },
-  dayH: {
-    flex: 1, textAlign: 'center',
-    fontFamily: 'Inter_500Medium', fontSize: 11, color: DS.text.muted,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  selectedCell: { backgroundColor: DS.primary, borderRadius: 20 },
-  dayText: {
-    fontFamily: 'Inter_400Regular', fontSize: 13, color: DS.text.secondary,
-  },
-  todayText: { fontFamily: 'Inter_700Bold', color: DS.primary },
-  selectedText: { fontFamily: 'Inter_700Bold', color: '#fff' },
-});

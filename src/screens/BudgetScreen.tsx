@@ -13,7 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { useSettingsStore } from '../store/settingsStore';
 import { useBudgetStore } from '../store/budgetStore';
 import { BottomSheet, ProgressBar, EmptyState } from '../components';
@@ -28,10 +29,10 @@ interface BudgetRow {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function barColor(pct: number): string {
-  if (pct >= 100) return DS.secondary;
-  if (pct >= 80)  return DS.tertiary;
-  return DS.primary;
+function barColor(pct: number, ds: DSType): string {
+  if (pct >= 100) return ds.secondary;
+  if (pct >= 80)  return ds.tertiary;
+  return ds.primary;
 }
 
 function fmtAmt(n: number, sym: string): string {
@@ -51,10 +52,191 @@ function nextMonth(y: number, m: number): [number, number] {
   return m === 12 ? [y + 1, 1] : [y, m + 1];
 }
 
+// ─── Styles factory ───────────────────────────────────────────────────────────
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root:   { flex: 1, backgroundColor: ds.surface.screen },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    scroll: { flex: 1 },
+    content: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
+
+    // Month nav
+    monthNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    navBtn: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: ds.surface.elevated,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    navBtnDisabled: { opacity: 0.3 },
+    monthLabel: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 14, color: ds.text.primary,
+      minWidth: 90, textAlign: 'center',
+    },
+
+    // Overview card
+    overviewCard: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      gap: 12,
+    },
+    overviewTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    overviewLabel: {
+      fontFamily: 'Inter_400Regular', fontSize: 11, color: ds.text.muted,
+      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3,
+    },
+    overviewValue: {
+      fontFamily: 'Inter_700Bold', fontSize: 22, color: ds.text.primary,
+    },
+    overviewFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    overviewRemaining: {
+      fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.muted,
+    },
+    overviewPct: {
+      fontFamily: 'Inter_700Bold', fontSize: 14,
+    },
+
+    // Section
+    section: { gap: 10 },
+    sectionTitle: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, color: ds.text.muted,
+      textTransform: 'uppercase', letterSpacing: 0.6,
+    },
+
+    // Category row (budgeted)
+    catRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.lg,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    catRowOver: {
+      borderColor: `${ds.secondary}44`,
+      backgroundColor: `${ds.secondary}0A`,
+    },
+    catIcon: {
+      width: 36, height: 36, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center',
+      marginTop: 2,
+    },
+    catInfo:   { flex: 1, gap: 6 },
+    catTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    catNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+    catName:   { fontFamily: 'Inter_500Medium', fontSize: 14, color: ds.text.primary },
+    catAmt:    { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+    catLimit:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.muted },
+    catBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    catPct:    { fontFamily: 'Inter_500Medium', fontSize: 11 },
+
+    // Over-budget badge
+    overBadge: {
+      backgroundColor: `${ds.secondary}22`,
+      borderRadius: 4,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+    },
+    overBadgeTxt: {
+      fontFamily: 'Inter_700Bold', fontSize: 9, color: ds.secondary, letterSpacing: 0.5,
+    },
+
+    // Unbudgeted row
+    unbudgetedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.lg,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      opacity: 0.7,
+    },
+    unbudgetedName: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular', fontSize: 14, color: ds.text.muted,
+    },
+    setBudgetBtn: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderWidth: 1,
+      borderColor: ds.border.medium,
+    },
+    setBudgetTxt: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 12, color: ds.text.secondary,
+    },
+
+    // Empty state unbudgeted scroll
+    emptyUnbudgetedScroll: {
+      flex: 1,
+    },
+
+    // Bottom sheet
+    sheetBody: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      gap: 12,
+    },
+    sheetLabel: {
+      fontFamily: 'Inter_500Medium', fontSize: 13, color: ds.text.secondary,
+    },
+    sheetInput: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.medium,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 20,
+      color: ds.text.primary,
+      textAlign: 'center',
+    },
+    sheetSaveBtn: {
+      backgroundColor: ds.primary,
+      borderRadius: ds.radius.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 4,
+    },
+    sheetSaveBtnDisabled: { opacity: 0.45 },
+    sheetSaveBtnTxt: {
+      fontFamily: 'Inter_700Bold', fontSize: 15, color: '#fff',
+    },
+  });
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BudgetScreen() {
   const insets = useSafeAreaInsets();
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const sym = useSettingsStore(s => s.currencySymbol);
   const { budgets, progress, allExpenseCategories, isLoading, loadFromDB, upsertBudget } = useBudgetStore();
 
@@ -140,7 +322,7 @@ export default function BudgetScreen() {
   if (isLoading && budgets.length === 0 && allExpenseCategories.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={DS.primary} size="large" />
+        <ActivityIndicator color={ds.primary} size="large" />
       </View>
     );
   }
@@ -155,7 +337,7 @@ export default function BudgetScreen() {
           style={styles.navBtn}
           onPress={() => { const [y, m] = prevMonth(year, month); setYear(y); setMonth(m); }}
         >
-          <MaterialCommunityIcons name="chevron-left" size={20} color={DS.text.primary} />
+          <MaterialCommunityIcons name="chevron-left" size={20} color={ds.text.primary} />
         </TouchableOpacity>
         <Text style={styles.monthLabel}>{MONTH_ABBR[month - 1]} {year}</Text>
         <TouchableOpacity
@@ -167,7 +349,7 @@ export default function BudgetScreen() {
           <MaterialCommunityIcons
             name="chevron-right"
             size={20}
-            color={isCurrentMonth ? DS.text.muted : DS.text.primary}
+            color={isCurrentMonth ? ds.text.muted : ds.text.primary}
           />
         </TouchableOpacity>
       </View>
@@ -194,19 +376,19 @@ export default function BudgetScreen() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.overviewLabel}>Total Spent</Text>
-                <Text style={[styles.overviewValue, { color: barColor(overallPct) }]}>
+                <Text style={[styles.overviewValue, { color: barColor(overallPct, ds) }]}>
                   {fmtAmt(totalSpent, sym)}
                 </Text>
               </View>
             </View>
-            <ProgressBar value={totalSpent} max={totalBudgeted} color={barColor(overallPct)} height={8} />
+            <ProgressBar value={totalSpent} max={totalBudgeted} color={barColor(overallPct, ds)} height={8} />
             <View style={styles.overviewFooter}>
               <Text style={styles.overviewRemaining}>
                 {totalSpent <= totalBudgeted
                   ? `${fmtAmt(totalBudgeted - totalSpent, sym)} remaining`
                   : `${fmtAmt(totalSpent - totalBudgeted, sym)} over budget`}
               </Text>
-              <Text style={[styles.overviewPct, { color: barColor(overallPct) }]}>{overallPct}%</Text>
+              <Text style={[styles.overviewPct, { color: barColor(overallPct, ds) }]}>{overallPct}%</Text>
             </View>
           </View>
 
@@ -265,7 +447,7 @@ export default function BudgetScreen() {
             value={limitInput}
             onChangeText={setLimitInput}
             placeholder="e.g. 5000"
-            placeholderTextColor={DS.text.muted}
+            placeholderTextColor={ds.text.muted}
             keyboardType="numeric"
             autoFocus
             returnKeyType="done"
@@ -299,11 +481,13 @@ function BudgetCategoryRow({
   sym: string;
   onPress: () => void;
 }) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const { category, progress } = row;
   const spent = progress?.spent ?? 0;
   const limit = progress?.limit ?? (row.category as any).__limit ?? 0;
   const pct   = progress?.percent ?? 0;
-  const color = barColor(pct);
+  const color = barColor(pct, ds);
   const isOver = pct >= 100;
 
   return (
@@ -336,7 +520,7 @@ function BudgetCategoryRow({
 
         <View style={styles.catBottomRow}>
           <Text style={[styles.catPct, { color }]}>{pct}% used</Text>
-          <MaterialCommunityIcons name="pencil-outline" size={13} color={DS.text.muted} />
+          <MaterialCommunityIcons name="pencil-outline" size={13} color={ds.text.muted} />
         </View>
       </View>
     </TouchableOpacity>
@@ -344,6 +528,9 @@ function BudgetCategoryRow({
 }
 
 function UnbudgetedRow({ cat, onPress }: { cat: Category; onPress: () => void }) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   return (
     <TouchableOpacity style={styles.unbudgetedRow} onPress={onPress} activeOpacity={0.7}>
       <View style={[styles.catIcon, { backgroundColor: `${cat.color}18` }]}>
@@ -356,180 +543,3 @@ function UnbudgetedRow({ cat, onPress }: { cat: Category; onPress: () => void })
     </TouchableOpacity>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: DS.surface.screen },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-
-  // Month nav
-  monthNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  navBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: DS.surface.elevated,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navBtnDisabled: { opacity: 0.3 },
-  monthLabel: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 14, color: DS.text.primary,
-    minWidth: 90, textAlign: 'center',
-  },
-
-  // Overview card
-  overviewCard: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    gap: 12,
-  },
-  overviewTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  overviewLabel: {
-    fontFamily: 'Inter_400Regular', fontSize: 11, color: DS.text.muted,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3,
-  },
-  overviewValue: {
-    fontFamily: 'Inter_700Bold', fontSize: 22, color: DS.text.primary,
-  },
-  overviewFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  overviewRemaining: {
-    fontFamily: 'Inter_400Regular', fontSize: 12, color: DS.text.muted,
-  },
-  overviewPct: {
-    fontFamily: 'Inter_700Bold', fontSize: 14,
-  },
-
-  // Section
-  section: { gap: 10 },
-  sectionTitle: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 13, color: DS.text.muted,
-    textTransform: 'uppercase', letterSpacing: 0.6,
-  },
-
-  // Category row (budgeted)
-  catRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-  },
-  catRowOver: {
-    borderColor: `${DS.secondary}44`,
-    backgroundColor: `${DS.secondary}0A`,
-  },
-  catIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: 2,
-  },
-  catInfo:   { flex: 1, gap: 6 },
-  catTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  catNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  catName:   { fontFamily: 'Inter_500Medium', fontSize: 14, color: DS.text.primary },
-  catAmt:    { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  catLimit:  { fontFamily: 'Inter_400Regular', fontSize: 12, color: DS.text.muted },
-  catBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  catPct:    { fontFamily: 'Inter_500Medium', fontSize: 11 },
-
-  // Over-budget badge
-  overBadge: {
-    backgroundColor: `${DS.secondary}22`,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  overBadgeTxt: {
-    fontFamily: 'Inter_700Bold', fontSize: 9, color: DS.secondary, letterSpacing: 0.5,
-  },
-
-  // Unbudgeted row
-  unbudgetedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    opacity: 0.7,
-  },
-  unbudgetedName: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular', fontSize: 14, color: DS.text.muted,
-  },
-  setBudgetBtn: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: DS.border.medium,
-  },
-  setBudgetTxt: {
-    fontFamily: 'Inter_600SemiBold', fontSize: 12, color: DS.text.secondary,
-  },
-
-  // Empty state unbudgeted scroll
-  emptyUnbudgetedScroll: {
-    flex: 1,
-  },
-
-  // Bottom sheet
-  sheetBody: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 12,
-  },
-  sheetLabel: {
-    fontFamily: 'Inter_500Medium', fontSize: 13, color: DS.text.secondary,
-  },
-  sheetInput: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.medium,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 20,
-    color: DS.text.primary,
-    textAlign: 'center',
-  },
-  sheetSaveBtn: {
-    backgroundColor: DS.primary,
-    borderRadius: DS.radius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  sheetSaveBtnDisabled: { opacity: 0.45 },
-  sheetSaveBtnTxt: {
-    fontFamily: 'Inter_700Bold', fontSize: 15, color: '#fff',
-  },
-});

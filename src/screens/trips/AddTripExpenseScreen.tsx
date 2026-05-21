@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
-import { DS } from '../../constants';
+import { DSType } from '../../constants/colors';
+import { useDS } from '../../hooks/useDS';
 import { hexToRgba } from '../../utils/color';
 import { useTripsStore } from '../../store/tripsStore';
 import { useCategoriesStore } from '../../store/categoriesStore';
@@ -28,15 +29,18 @@ type Route = RouteProp<TripsStackParamList, 'AddTripExpense'>;
 
 type SplitType = 'equal' | 'custom' | 'percentage';
 
-const AVATAR_PALETTE = [
-  DS.primary, DS.secondary, DS.tertiary, DS.purple,
-  '#3B82F6', '#EC4899', '#14B8A6', '#F97316',
-];
+function getAvatarPalette(ds: DSType): string[] {
+  return [
+    ds.primary, ds.secondary, ds.tertiary, ds.purple,
+    '#3B82F6', '#EC4899', '#14B8A6', '#F97316',
+  ];
+}
 
-function avatarColor(name: string): string {
+function avatarColor(name: string, ds: DSType): string {
+  const palette = getAvatarPalette(ds);
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+  return palette[Math.abs(hash) % palette.length];
 }
 
 function initials(name: string): string {
@@ -47,6 +51,351 @@ function initials(name: string): string {
 
 function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ── Style factories ───────────────────────────────────────────────────────────
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const CAT_COLS = 4;
+const CAT_CELL = Math.floor((SCREEN_W - 32 - (CAT_COLS - 1) * 8) / CAT_COLS);
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: ds.surface.screen },
+
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 18,
+      lineHeight: 24,
+      color: ds.text.primary,
+    },
+    closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+
+    scroll: { flex: 1 },
+    scrollContent: { padding: 16, gap: 20 },
+
+    amountSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
+      gap: 4,
+    },
+    currencySymbol: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 40,
+      lineHeight: 48,
+      letterSpacing: -1.2,
+      color: ds.primary,
+      alignSelf: 'flex-start',
+      marginTop: 6,
+    },
+    amountInput: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 56,
+      lineHeight: 64,
+      letterSpacing: -2.24,
+      minWidth: 80,
+      maxWidth: SCREEN_W - 80,
+      padding: 0,
+      includeFontPadding: false,
+    },
+    errorCenter: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+      textAlign: 'center',
+      marginTop: -12,
+    },
+    errorInline: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+    },
+
+    section: { gap: 8 },
+    sectionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    sectionTitle: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
+    optional: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      textTransform: 'none',
+      letterSpacing: 0,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: ds.text.muted,
+      paddingVertical: 4,
+    },
+
+    inputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      height: 48,
+      gap: 8,
+    },
+    inputIcon: {},
+    inputText: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      color: ds.text.primary,
+      padding: 0,
+    },
+
+    catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    catCell: {
+      width: CAT_CELL,
+      height: CAT_CELL,
+      borderRadius: ds.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1.5,
+      borderColor: ds.border.subtle,
+    },
+    catIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    catLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 10,
+      lineHeight: 14,
+      color: ds.text.muted,
+      textAlign: 'center',
+      paddingHorizontal: 4,
+    },
+
+    paidByRow: { gap: 8, paddingVertical: 2 },
+    paidByChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: ds.radius.full,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1.5,
+      borderColor: ds.border.subtle,
+    },
+    paidByAvatar: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    paidByInitials: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11,
+      lineHeight: 14,
+    },
+    paidByName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.secondary,
+      maxWidth: 80,
+    },
+
+    splitToggle: {
+      flexDirection: 'row',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      padding: 4,
+      gap: 4,
+    },
+    splitBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      height: 40,
+      borderRadius: ds.radius.md - 2,
+    },
+    splitBtnActive: { backgroundColor: hexToRgba(ds.primary, 0.18) },
+    splitBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    splitBtnTextActive: { color: ds.primaryLight },
+
+    perPersonHint: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.primaryLight,
+    },
+    perPersonHintError: { color: ds.secondaryLight },
+    splitErrorText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+      marginTop: -4,
+    },
+    splitList: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      overflow: 'hidden',
+    },
+
+    footer: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    saveBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 54,
+      borderRadius: ds.radius.md,
+      backgroundColor: ds.primary,
+    },
+    saveBtnText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 17,
+      lineHeight: 22,
+      color: '#fff',
+    },
+  });
+}
+
+function makeSplitRowStyles(ds: DSType) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: ds.border.subtle,
+    },
+    rowExcluded: { opacity: 0.5 },
+    checkWrap: { padding: 2 },
+    check: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: ds.border.medium,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkActive: {
+      backgroundColor: ds.primary,
+      borderColor: ds.primary,
+    },
+    avatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    name: {
+      flex: 1,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    nameExcluded: { color: ds.text.muted },
+    equalAmt: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.primaryLight,
+    },
+    input: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.sm,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 8,
+      height: 36,
+      minWidth: 80,
+      gap: 2,
+    },
+    inputError: { borderColor: ds.secondary },
+    inputPrefix: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    inputSuffix: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+    inputText: {
+      flex: 1,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.primary,
+      padding: 0,
+      textAlign: 'right',
+      minWidth: 50,
+    },
+  });
 }
 
 // ── Category cell ─────────────────────────────────────────────────────────────
@@ -60,6 +409,9 @@ interface CatCellProps {
 }
 
 function CatCell({ icon, name, color, selected, onPress }: CatCellProps) {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
   return (
     <TouchableOpacity
       style={[
@@ -73,7 +425,7 @@ function CatCell({ icon, name, color, selected, onPress }: CatCellProps) {
         <MaterialCommunityIcons
           name={icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
           size={20}
-          color={selected ? color : DS.text.muted}
+          color={selected ? color : ds.text.muted}
         />
       </View>
       <Text style={[s.catLabel, selected && { color }]} numberOfLines={1}>{name}</Text>
@@ -90,7 +442,10 @@ interface PaidByChipProps {
 }
 
 function PaidByChip({ participant, selected, onPress }: PaidByChipProps) {
-  const color = avatarColor(participant.name);
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
+  const color = avatarColor(participant.name, ds);
   const displayName = participant.is_self ? 'Me' : participant.name;
   return (
     <TouchableOpacity
@@ -130,7 +485,10 @@ function SplitRow({
   participant, splitType, value, perPersonDisplay, excluded,
   onChangeValue, onToggleExclude, currencySymbol, error,
 }: SplitRowProps) {
-  const color = avatarColor(participant.name);
+  const ds = useDS();
+  const sr = useMemo(() => makeSplitRowStyles(ds), [ds]);
+
+  const color = avatarColor(participant.name, ds);
   const displayName = participant.is_self ? 'Me' : participant.name;
 
   return (
@@ -153,7 +511,7 @@ function SplitRow({
       {/* Value input or computed display */}
       <View style={{ flex: 1, alignItems: 'flex-end' }}>
         {splitType === 'equal' ? (
-          <Text style={[sr.equalAmt, excluded && { color: DS.text.muted }]}>{perPersonDisplay}</Text>
+          <Text style={[sr.equalAmt, excluded && { color: ds.text.muted }]}>{perPersonDisplay}</Text>
         ) : splitType === 'custom' ? (
           <View style={[sr.input, error && sr.inputError, excluded && { opacity: 0.4 }]}>
             <Text style={sr.inputPrefix}>{currencySymbol}</Text>
@@ -163,8 +521,8 @@ function SplitRow({
               onChangeText={onChangeValue}
               keyboardType="decimal-pad"
               placeholder="0"
-              placeholderTextColor={DS.text.muted}
-              selectionColor={DS.primary}
+              placeholderTextColor={ds.text.muted}
+              selectionColor={ds.primary}
               editable={!excluded}
             />
           </View>
@@ -176,8 +534,8 @@ function SplitRow({
               onChangeText={onChangeValue}
               keyboardType="decimal-pad"
               placeholder="0"
-              placeholderTextColor={DS.text.muted}
-              selectionColor={DS.primary}
+              placeholderTextColor={ds.text.muted}
+              selectionColor={ds.primary}
               editable={!excluded}
             />
             <Text style={sr.inputSuffix}>%</Text>
@@ -191,6 +549,9 @@ function SplitRow({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function AddTripExpenseScreen() {
+  const ds = useDS();
+  const s = useMemo(() => makeStyles(ds), [ds]);
+
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
@@ -344,7 +705,7 @@ export default function AddTripExpenseScreen() {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <MaterialCommunityIcons name="close" size={24} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="close" size={24} color={ds.text.secondary} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Add Expense</Text>
         <View style={s.closeBtn} />
@@ -364,14 +725,14 @@ export default function AddTripExpenseScreen() {
           <TouchableOpacity style={s.amountSection} activeOpacity={1}>
             <Text style={s.currencySymbol}>{currencySymbol}</Text>
             <TextInput
-              style={[s.amountInput, { color: amount ? DS.primaryLight : DS.text.muted }]}
+              style={[s.amountInput, { color: amount ? ds.primaryLight : ds.text.muted }]}
               value={amount}
               onChangeText={handleAmountChange}
               keyboardType="decimal-pad"
               autoFocus
               placeholder="0"
-              placeholderTextColor={DS.text.muted}
-              selectionColor={DS.primary}
+              placeholderTextColor={ds.text.muted}
+              selectionColor={ds.primary}
               returnKeyType="done"
             />
           </TouchableOpacity>
@@ -381,14 +742,14 @@ export default function AddTripExpenseScreen() {
           <View style={s.section}>
             <Text style={s.sectionTitle}>DESCRIPTION</Text>
             <View style={s.inputWrap}>
-              <MaterialCommunityIcons name="text-short" size={16} color={DS.text.muted} style={s.inputIcon} />
+              <MaterialCommunityIcons name="text-short" size={16} color={ds.text.muted} style={s.inputIcon} />
               <TextInput
                 style={s.inputText}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="What was this expense for?"
-                placeholderTextColor={DS.text.muted}
-                selectionColor={DS.primary}
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
                 returnKeyType="next"
                 maxLength={120}
               />
@@ -464,7 +825,7 @@ export default function AddTripExpenseScreen() {
                     <MaterialCommunityIcons
                       name={icons[type]}
                       size={15}
-                      color={active ? DS.primaryLight : DS.text.muted}
+                      color={active ? ds.primaryLight : ds.text.muted}
                     />
                     <Text style={[s.splitBtnText, active && s.splitBtnTextActive]}>{labels[type]}</Text>
                   </TouchableOpacity>
@@ -535,346 +896,3 @@ export default function AddTripExpenseScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const CAT_COLS = 4;
-const CAT_CELL = Math.floor((SCREEN_W - 32 - (CAT_COLS - 1) * 8) / CAT_COLS);
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DS.surface.screen },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 18,
-    lineHeight: 24,
-    color: DS.text.primary,
-  },
-  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 20 },
-
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    gap: 4,
-  },
-  currencySymbol: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 40,
-    lineHeight: 48,
-    letterSpacing: -1.2,
-    color: DS.primary,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  amountInput: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 56,
-    lineHeight: 64,
-    letterSpacing: -2.24,
-    minWidth: 80,
-    maxWidth: SCREEN_W - 80,
-    padding: 0,
-    includeFontPadding: false,
-  },
-  errorCenter: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-    textAlign: 'center',
-    marginTop: -12,
-  },
-  errorInline: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-  },
-
-  section: { gap: 8 },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
-  optional: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: DS.text.muted,
-    paddingVertical: 4,
-  },
-
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    height: 48,
-    gap: 8,
-  },
-  inputIcon: {},
-  inputText: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
-    color: DS.text.primary,
-    padding: 0,
-  },
-
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catCell: {
-    width: CAT_CELL,
-    height: CAT_CELL,
-    borderRadius: DS.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1.5,
-    borderColor: DS.border.subtle,
-  },
-  catIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  catLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    lineHeight: 14,
-    color: DS.text.muted,
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-
-  paidByRow: { gap: 8, paddingVertical: 2 },
-  paidByChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: DS.radius.full,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1.5,
-    borderColor: DS.border.subtle,
-  },
-  paidByAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paidByInitials: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  paidByName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.secondary,
-    maxWidth: 80,
-  },
-
-  splitToggle: {
-    flexDirection: 'row',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    padding: 4,
-    gap: 4,
-  },
-  splitBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 40,
-    borderRadius: DS.radius.md - 2,
-  },
-  splitBtnActive: { backgroundColor: hexToRgba(DS.primary, 0.18) },
-  splitBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-  splitBtnTextActive: { color: DS.primaryLight },
-
-  perPersonHint: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.primaryLight,
-  },
-  perPersonHintError: { color: DS.secondaryLight },
-  splitErrorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-    marginTop: -4,
-  },
-  splitList: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    overflow: 'hidden',
-  },
-
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 54,
-    borderRadius: DS.radius.md,
-    backgroundColor: DS.primary,
-  },
-  saveBtnText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 17,
-    lineHeight: 22,
-    color: '#fff',
-  },
-});
-
-// ── Split row styles ──────────────────────────────────────────────────────────
-
-const sr = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DS.border.subtle,
-  },
-  rowExcluded: { opacity: 0.5 },
-  checkWrap: { padding: 2 },
-  check: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: DS.border.medium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkActive: {
-    backgroundColor: DS.primary,
-    borderColor: DS.primary,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  name: {
-    flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  nameExcluded: { color: DS.text.muted },
-  equalAmt: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.primaryLight,
-  },
-  input: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.sm,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 8,
-    height: 36,
-    minWidth: 80,
-    gap: 2,
-  },
-  inputError: { borderColor: DS.secondary },
-  inputPrefix: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-  inputSuffix: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-  inputText: {
-    flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.primary,
-    padding: 0,
-    textAlign: 'right',
-    minWidth: 50,
-  },
-});

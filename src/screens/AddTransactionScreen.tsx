@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
@@ -58,6 +59,400 @@ function toISODate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+// ── Styles factory ────────────────────────────────────────────────────────────
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const CELL_COLS = 4;
+const CELL_SIZE = Math.floor((SCREEN_W - 32 - (CELL_COLS - 1) * 8) / CELL_COLS);
+
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: ds.surface.screen,
+    },
+
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 18,
+      lineHeight: 24,
+      color: ds.text.primary,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    // Scroll
+    scroll: { flex: 1 },
+    scrollContent: { padding: 16, gap: 20 },
+
+    // Type tabs
+    typeTabs: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    typeTab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 48,
+      borderRadius: ds.radius.lg,
+      borderWidth: 1.5,
+      backgroundColor: ds.surface.elevated,
+    },
+    typeTabText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.muted,
+    },
+
+    // Amount
+    amountSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
+      gap: 4,
+    },
+    currencySymbol: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 40,
+      lineHeight: 48,
+      letterSpacing: -1.2,
+      alignSelf: 'flex-start',
+      marginTop: 6,
+    },
+    amountInput: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 56,
+      lineHeight: 64,
+      letterSpacing: -2.24,
+      minWidth: 80,
+      maxWidth: SCREEN_W - 80,
+      padding: 0,
+      includeFontPadding: false,
+    },
+
+    // Error
+    errorText: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.secondaryLight,
+      marginTop: -8,
+    },
+
+    // Section
+    section: { gap: 8 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    sectionTitle: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      lineHeight: 18,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: ds.text.muted,
+    },
+    optionalTag: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      color: ds.text.muted,
+      textTransform: 'none',
+      letterSpacing: 0,
+    },
+    emptyHint: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      color: ds.text.muted,
+      paddingVertical: 8,
+    },
+
+    // Category grid
+    categoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    categoryCell: {
+      width: CELL_SIZE,
+      height: CELL_SIZE,
+      borderRadius: ds.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1.5,
+      borderColor: ds.border.subtle,
+    },
+    categoryIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    categoryLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.muted,
+      textAlign: 'center',
+      paddingHorizontal: 4,
+    },
+    showMoreBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingVertical: 8,
+    },
+    showMoreText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+
+    // Details card
+    detailsCard: {
+      backgroundColor: ds.surface.card,
+      borderRadius: ds.radius.xl,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      overflow: 'hidden',
+    },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    detailIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    detailContent: { flex: 1 },
+    detailLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+      marginBottom: 2,
+    },
+    detailValue: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    detailPlaceholder: { color: ds.text.muted },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: ds.border.subtle,
+      marginLeft: 64,
+    },
+
+    // Text inputs
+    inputWrap: {
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 14,
+      minHeight: 48,
+      justifyContent: 'center',
+    },
+    notesWrap: {
+      minHeight: 88,
+      paddingVertical: 10,
+      justifyContent: 'flex-start',
+    },
+    textInput: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 15,
+      lineHeight: 22,
+      color: ds.text.primary,
+      padding: 0,
+    },
+    notesInput: {
+      minHeight: 68,
+    },
+
+    // Footer / save button
+    footer: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: ds.border.subtle,
+      backgroundColor: ds.surface.screen,
+    },
+    saveBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 54,
+      borderRadius: ds.radius.md,
+    },
+    saveBtnText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 17,
+      lineHeight: 22,
+      color: '#fff',
+    },
+
+    // Date sheet
+    dateSheetBody: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
+    dateChips: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    dateChip: {
+      flex: 1,
+      height: 44,
+      borderRadius: ds.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    dateChipActive: { backgroundColor: hexToRgba(ds.primary, 0.18), borderColor: ds.primary },
+    dateChipText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.muted,
+    },
+    dateChipTextActive: { color: ds.primaryLight },
+    dayNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.lg,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      marginBottom: 20,
+      overflow: 'hidden',
+    },
+    dayNavBtn: {
+      width: 48,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dayNavLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    dateConfirmBtn: {
+      height: 52,
+      borderRadius: ds.radius.md,
+      backgroundColor: ds.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateConfirmText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 16,
+      lineHeight: 22,
+      color: '#fff',
+    },
+
+    // Account sheet
+    accountSheetBody: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 6 },
+    accountRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 12,
+      borderRadius: ds.radius.lg,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    accountRowSelected: {
+      borderColor: ds.primary,
+      backgroundColor: hexToRgba(ds.primary, 0.08),
+    },
+    accountRowIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accountRowName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    accountRowBal: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.text.muted,
+    },
+
+    // Success overlay
+    successOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.75)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 20,
+    },
+    successCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: ds.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: ds.primary,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.6,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    successText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 24,
+      lineHeight: 32,
+      color: '#fff',
+      letterSpacing: -0.5,
+    },
+  });
+}
+
 // ── Category grid cell ────────────────────────────────────────────────────────
 
 interface CategoryCellProps {
@@ -67,10 +462,13 @@ interface CategoryCellProps {
 }
 
 function CategoryCell({ category, selected, onPress }: CategoryCellProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+
   return (
     <TouchableOpacity
       style={[
-        s.categoryCell,
+        styles.categoryCell,
         selected && { borderColor: category.color, backgroundColor: hexToRgba(category.color, 0.12) },
       ]}
       onPress={onPress}
@@ -78,7 +476,7 @@ function CategoryCell({ category, selected, onPress }: CategoryCellProps) {
     >
       <View
         style={[
-          s.categoryIcon,
+          styles.categoryIcon,
           {
             backgroundColor: selected
               ? hexToRgba(category.color, 0.25)
@@ -89,11 +487,11 @@ function CategoryCell({ category, selected, onPress }: CategoryCellProps) {
         <MaterialCommunityIcons
           name={category.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
           size={22}
-          color={selected ? category.color : DS.text.muted}
+          color={selected ? category.color : ds.text.muted}
         />
       </View>
       <Text
-        style={[s.categoryLabel, selected && { color: category.color }]}
+        style={[styles.categoryLabel, selected && { color: category.color }]}
         numberOfLines={1}
       >
         {category.name}
@@ -112,6 +510,8 @@ interface DateSheetProps {
 }
 
 function DateSheet({ visible, onClose, date, onChange }: DateSheetProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const [local, setLocal] = useState(date);
 
   useEffect(() => { if (visible) setLocal(date); }, [visible, date]);
@@ -130,9 +530,9 @@ function DateSheet({ visible, onClose, date, onChange }: DateSheetProps) {
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Select Date">
-      <View style={s.dateSheetBody}>
+      <View style={styles.dateSheetBody}>
         {/* Quick chips */}
-        <View style={s.dateChips}>
+        <View style={styles.dateChips}>
           {[
             { label: 'Yesterday', d: yesterday },
             { label: 'Today', d: today },
@@ -141,26 +541,26 @@ function DateSheet({ visible, onClose, date, onChange }: DateSheetProps) {
             return (
               <TouchableOpacity
                 key={label}
-                style={[s.dateChip, active && s.dateChipActive]}
+                style={[styles.dateChip, active && styles.dateChipActive]}
                 onPress={() => setLocal(new Date(d))}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dateChipText, active && s.dateChipTextActive]}>{label}</Text>
+                <Text style={[styles.dateChipText, active && styles.dateChipTextActive]}>{label}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         {/* Day navigator */}
-        <View style={s.dayNav}>
-          <TouchableOpacity style={s.dayNavBtn} onPress={() => shift(-1)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="chevron-left" size={24} color={DS.text.secondary} />
+        <View style={styles.dayNav}>
+          <TouchableOpacity style={styles.dayNavBtn} onPress={() => shift(-1)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="chevron-left" size={24} color={ds.text.secondary} />
           </TouchableOpacity>
-          <Text style={s.dayNavLabel}>
+          <Text style={styles.dayNavLabel}>
             {local.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </Text>
           <TouchableOpacity
-            style={s.dayNavBtn}
+            style={styles.dayNavBtn}
             onPress={() => shift(1)}
             disabled={isSameDay(local, today)}
             activeOpacity={0.7}
@@ -168,13 +568,13 @@ function DateSheet({ visible, onClose, date, onChange }: DateSheetProps) {
             <MaterialCommunityIcons
               name="chevron-right"
               size={24}
-              color={isSameDay(local, today) ? DS.text.muted : DS.text.secondary}
+              color={isSameDay(local, today) ? ds.text.muted : ds.text.secondary}
             />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={s.dateConfirmBtn} onPress={confirm} activeOpacity={0.85}>
-          <Text style={s.dateConfirmText}>Confirm</Text>
+        <TouchableOpacity style={styles.dateConfirmBtn} onPress={confirm} activeOpacity={0.85}>
+          <Text style={styles.dateConfirmText}>Confirm</Text>
         </TouchableOpacity>
       </View>
     </BottomSheet>
@@ -191,6 +591,8 @@ interface AccountSheetProps {
 }
 
 function AccountSheet({ visible, onClose, selectedId, onSelect }: AccountSheetProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const { accounts } = useAccountsStore();
   const { currencySymbol } = useSettingsStore();
   const active = accounts.filter((a) => !a.is_archived);
@@ -199,15 +601,15 @@ function AccountSheet({ visible, onClose, selectedId, onSelect }: AccountSheetPr
     bank: 'bank', cash: 'cash', wallet: 'wallet', credit: 'credit-card', other: 'shape-outline',
   };
   const ACCOUNT_COLORS: Record<string, string> = {
-    bank: DS.primary, cash: DS.primaryLight, wallet: DS.tertiary, credit: DS.secondary, other: DS.purple,
+    bank: ds.primary, cash: ds.primaryLight, wallet: ds.tertiary, credit: ds.secondary, other: ds.purple,
   };
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Select Account">
-      <View style={s.accountSheetBody}>
+      <View style={styles.accountSheetBody}>
         {active.map((a) => {
           const icon = ACCOUNT_ICONS[a.type] ?? 'bank';
-          const color = ACCOUNT_COLORS[a.type] ?? DS.primary;
+          const color = ACCOUNT_COLORS[a.type] ?? ds.primary;
           const isSelected = a.id === selectedId;
           const bal = (Math.abs(a.balance) / 100).toLocaleString('en-IN', {
             minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -215,19 +617,19 @@ function AccountSheet({ visible, onClose, selectedId, onSelect }: AccountSheetPr
           return (
             <TouchableOpacity
               key={a.id}
-              style={[s.accountRow, isSelected && s.accountRowSelected]}
+              style={[styles.accountRow, isSelected && styles.accountRowSelected]}
               onPress={() => { onSelect(a.id); onClose(); }}
               activeOpacity={0.75}
             >
-              <View style={[s.accountRowIcon, { backgroundColor: hexToRgba(color, 0.15) }]}>
+              <View style={[styles.accountRowIcon, { backgroundColor: hexToRgba(color, 0.15) }]}>
                 <MaterialCommunityIcons name={icon} size={20} color={color} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.accountRowName}>{a.name}</Text>
-                <Text style={s.accountRowBal}>{currencySymbol}{bal}</Text>
+                <Text style={styles.accountRowName}>{a.name}</Text>
+                <Text style={styles.accountRowBal}>{currencySymbol}{bal}</Text>
               </View>
               {isSelected && (
-                <MaterialCommunityIcons name="check-circle" size={20} color={DS.primary} />
+                <MaterialCommunityIcons name="check-circle" size={20} color={ds.primary} />
               )}
             </TouchableOpacity>
           );
@@ -240,6 +642,8 @@ function AccountSheet({ visible, onClose, selectedId, onSelect }: AccountSheetPr
 // ── Success overlay ───────────────────────────────────────────────────────────
 
 function SuccessOverlay({ visible }: { visible: boolean }) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -267,11 +671,11 @@ function SuccessOverlay({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   return (
-    <Animated.View style={[s.successOverlay, { opacity }]}>
-      <Animated.View style={[s.successCircle, { transform: [{ scale }] }]}>
+    <Animated.View style={[styles.successOverlay, { opacity }]}>
+      <Animated.View style={[styles.successCircle, { transform: [{ scale }] }]}>
         <MaterialCommunityIcons name="check" size={48} color="#fff" />
       </Animated.View>
-      <Text style={s.successText}>Saved!</Text>
+      <Text style={styles.successText}>Saved!</Text>
     </Animated.View>
   );
 }
@@ -284,6 +688,8 @@ export default function AddTransactionScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
 
   const { incomeCategories, expenseCategories, loadFromDB: loadCats } = useCategoriesStore();
   const { accounts, loadFromDB: loadAccounts } = useAccountsStore();
@@ -351,8 +757,8 @@ export default function AddTransactionScreen() {
 
   // ── Derived state ─────────────────────────────────────────────────────────
 
-  const typeColor = txType === 'income' ? DS.primary : DS.secondary;
-  const typeColorLight = txType === 'income' ? DS.primaryLight : DS.secondaryLight;
+  const typeColor = txType === 'income' ? ds.primary : ds.secondary;
+  const typeColorLight = txType === 'income' ? ds.primaryLight : ds.secondaryLight;
   const categories = txType === 'income' ? incomeCategories : expenseCategories;
   const visibleCats = showAllCats ? categories : categories.slice(0, CATEGORIES_COLLAPSED);
   const hiddenCount = categories.length - CATEGORIES_COLLAPSED;
@@ -423,18 +829,18 @@ export default function AddTransactionScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <View style={s.root}>
+    <View style={styles.root}>
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
-          style={s.closeBtn}
+          style={styles.closeBtn}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <MaterialCommunityIcons name="close" size={24} color={DS.text.secondary} />
+          <MaterialCommunityIcons name="close" size={24} color={ds.text.secondary} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>{isEditing ? 'Edit Transaction' : 'Add Transaction'}</Text>
-        <View style={s.closeBtn} />
+        <Text style={styles.headerTitle}>{isEditing ? 'Edit Transaction' : 'Add Transaction'}</Text>
+        <View style={styles.closeBtn} />
       </View>
 
       <KeyboardAvoidingView
@@ -443,25 +849,25 @@ export default function AddTransactionScreen() {
         keyboardVerticalOffset={0}
       >
         <ScrollView
-          style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: 16 }]}
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* ── Type tabs ── */}
-          <View style={s.typeTabs}>
+          <View style={styles.typeTabs}>
             {(['expense', 'income'] as const).map((t) => {
               const active = txType === t;
-              const tColor = t === 'income' ? DS.primary : DS.secondary;
-              const tColorLight = t === 'income' ? DS.primaryLight : DS.secondaryLight;
+              const tColor = t === 'income' ? ds.primary : ds.secondary;
+              const tColorLight = t === 'income' ? ds.primaryLight : ds.secondaryLight;
               return (
                 <TouchableOpacity
                   key={t}
                   style={[
-                    s.typeTab,
+                    styles.typeTab,
                     active
                       ? { backgroundColor: hexToRgba(tColor, 0.18), borderColor: tColor }
-                      : { borderColor: DS.border.subtle },
+                      : { borderColor: ds.border.subtle },
                   ]}
                   onPress={() => handleTypeSwitch(t)}
                   activeOpacity={0.8}
@@ -469,9 +875,9 @@ export default function AddTransactionScreen() {
                   <MaterialCommunityIcons
                     name={t === 'income' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
                     size={18}
-                    color={active ? tColorLight : DS.text.muted}
+                    color={active ? tColorLight : ds.text.muted}
                   />
-                  <Text style={[s.typeTabText, active && { color: tColorLight }]}>
+                  <Text style={[styles.typeTabText, active && { color: tColorLight }]}>
                     {t === 'income' ? 'Income' : 'Expense'}
                   </Text>
                 </TouchableOpacity>
@@ -481,39 +887,39 @@ export default function AddTransactionScreen() {
 
           {/* ── Amount ── */}
           <TouchableOpacity
-            style={s.amountSection}
+            style={styles.amountSection}
             activeOpacity={1}
             onPress={() => amountRef.current?.focus()}
           >
-            <Text style={[s.currencySymbol, { color: typeColor }]}>{currencySymbol}</Text>
+            <Text style={[styles.currencySymbol, { color: typeColor }]}>{currencySymbol}</Text>
             <TextInput
               ref={amountRef}
-              style={[s.amountInput, { color: amount ? typeColorLight : DS.text.muted }]}
+              style={[styles.amountInput, { color: amount ? typeColorLight : ds.text.muted }]}
               value={amount}
               onChangeText={handleAmountChange}
               keyboardType="decimal-pad"
               autoFocus
               placeholder="0"
-              placeholderTextColor={DS.text.muted}
+              placeholderTextColor={ds.text.muted}
               selectionColor={typeColor}
               returnKeyType="done"
             />
           </TouchableOpacity>
           {amountError ? (
-            <Text style={[s.errorText, { textAlign: 'center' }]}>{amountError}</Text>
+            <Text style={[styles.errorText, { textAlign: 'center' }]}>{amountError}</Text>
           ) : null}
 
           {/* ── Category ── */}
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Category</Text>
-              {categoryError ? <Text style={s.errorText}>{categoryError}</Text> : null}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Category</Text>
+              {categoryError ? <Text style={styles.errorText}>{categoryError}</Text> : null}
             </View>
             {categories.length === 0 ? (
-              <Text style={s.emptyHint}>No categories found.</Text>
+              <Text style={styles.emptyHint}>No categories found.</Text>
             ) : (
               <>
-                <View style={s.categoryGrid}>
+                <View style={styles.categoryGrid}>
                   {visibleCats.map((cat) => (
                     <CategoryCell
                       key={cat.id}
@@ -525,17 +931,17 @@ export default function AddTransactionScreen() {
                 </View>
                 {hiddenCount > 0 && (
                   <TouchableOpacity
-                    style={s.showMoreBtn}
+                    style={styles.showMoreBtn}
                     onPress={() => setShowAllCats((v) => !v)}
                     activeOpacity={0.7}
                   >
-                    <Text style={s.showMoreText}>
+                    <Text style={styles.showMoreText}>
                       {showAllCats ? 'Show less' : `Show ${hiddenCount} more`}
                     </Text>
                     <MaterialCommunityIcons
                       name={showAllCats ? 'chevron-up' : 'chevron-down'}
                       size={16}
-                      color={DS.text.muted}
+                      color={ds.text.muted}
                     />
                   </TouchableOpacity>
                 )}
@@ -544,59 +950,59 @@ export default function AddTransactionScreen() {
           </View>
 
           {/* ── Details rows ── */}
-          <View style={s.detailsCard}>
+          <View style={styles.detailsCard}>
             {/* Account */}
             <TouchableOpacity
-              style={s.detailRow}
+              style={styles.detailRow}
               onPress={() => setAccountSheetOpen(true)}
               activeOpacity={0.75}
             >
-              <View style={[s.detailIcon, { backgroundColor: hexToRgba(DS.primary, 0.12) }]}>
-                <MaterialCommunityIcons name="bank-outline" size={18} color={DS.primary} />
+              <View style={[styles.detailIcon, { backgroundColor: hexToRgba(ds.primary, 0.12) }]}>
+                <MaterialCommunityIcons name="bank-outline" size={18} color={ds.primary} />
               </View>
-              <View style={s.detailContent}>
-                <Text style={s.detailLabel}>Account</Text>
-                <Text style={[s.detailValue, !selectedAccount && s.detailPlaceholder]}>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Account</Text>
+                <Text style={[styles.detailValue, !selectedAccount && styles.detailPlaceholder]}>
                   {selectedAccount?.name ?? 'Select account'}
                 </Text>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={DS.text.muted} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
             </TouchableOpacity>
-            {accountError ? <Text style={[s.errorText, { marginLeft: 52, marginBottom: 8 }]}>{accountError}</Text> : null}
+            {accountError ? <Text style={[styles.errorText, { marginLeft: 52, marginBottom: 8 }]}>{accountError}</Text> : null}
 
-            <View style={s.divider} />
+            <View style={styles.divider} />
 
             {/* Date */}
             <TouchableOpacity
-              style={s.detailRow}
+              style={styles.detailRow}
               onPress={() => setDateSheetOpen(true)}
               activeOpacity={0.75}
             >
-              <View style={[s.detailIcon, { backgroundColor: hexToRgba(DS.tertiary, 0.12) }]}>
-                <MaterialCommunityIcons name="calendar-outline" size={18} color={DS.tertiary} />
+              <View style={[styles.detailIcon, { backgroundColor: hexToRgba(ds.tertiary, 0.12) }]}>
+                <MaterialCommunityIcons name="calendar-outline" size={18} color={ds.tertiary} />
               </View>
-              <View style={s.detailContent}>
-                <Text style={s.detailLabel}>Date</Text>
-                <Text style={s.detailValue}>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Date</Text>
+                <Text style={styles.detailValue}>
                   {formatDateLabel(date)}
                   {!isSameDay(date, new Date()) && ` · ${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
                 </Text>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={DS.text.muted} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
             </TouchableOpacity>
           </View>
 
           {/* ── Description ── */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Description</Text>
-            <View style={s.inputWrap}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Description</Text>
+            <View style={styles.inputWrap}>
               <TextInput
-                style={s.textInput}
+                style={styles.textInput}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="e.g. Swiggy order, EMI payment…"
-                placeholderTextColor={DS.text.muted}
-                selectionColor={DS.primary}
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
                 returnKeyType="next"
                 maxLength={120}
               />
@@ -604,16 +1010,16 @@ export default function AddTransactionScreen() {
           </View>
 
           {/* ── Notes ── */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Notes <Text style={s.optionalTag}>(optional)</Text></Text>
-            <View style={[s.inputWrap, s.notesWrap]}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notes <Text style={styles.optionalTag}>(optional)</Text></Text>
+            <View style={[styles.inputWrap, styles.notesWrap]}>
               <TextInput
-                style={[s.textInput, s.notesInput]}
+                style={[styles.textInput, styles.notesInput]}
                 value={notes}
                 onChangeText={setNotes}
                 placeholder="Any extra details…"
-                placeholderTextColor={DS.text.muted}
-                selectionColor={DS.primary}
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -624,10 +1030,10 @@ export default function AddTransactionScreen() {
         </ScrollView>
 
         {/* ── CTA ── */}
-        <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity
             style={[
-              s.saveBtn,
+              styles.saveBtn,
               { backgroundColor: typeColor },
               saving && { opacity: 0.6 },
             ]}
@@ -636,7 +1042,7 @@ export default function AddTransactionScreen() {
             activeOpacity={0.85}
           >
             <MaterialCommunityIcons name="plus-circle-outline" size={20} color="#fff" />
-            <Text style={s.saveBtnText}>
+            <Text style={styles.saveBtnText}>
               {saving ? 'Saving…' : isEditing ? `Update ${txType === 'income' ? 'Income' : 'Expense'}` : `Add ${txType === 'income' ? 'Income' : 'Expense'}`}
             </Text>
           </TouchableOpacity>
@@ -662,395 +1068,3 @@ export default function AddTransactionScreen() {
     </View>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const CELL_COLS = 4;
-const CELL_SIZE = Math.floor((SCREEN_W - 32 - (CELL_COLS - 1) * 8) / CELL_COLS);
-
-const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: DS.surface.screen,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 18,
-    lineHeight: 24,
-    color: DS.text.primary,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Scroll
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 20 },
-
-  // Type tabs
-  typeTabs: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  typeTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    borderRadius: DS.radius.lg,
-    borderWidth: 1.5,
-    backgroundColor: DS.surface.elevated,
-  },
-  typeTabText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.muted,
-  },
-
-  // Amount
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    gap: 4,
-  },
-  currencySymbol: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 40,
-    lineHeight: 48,
-    letterSpacing: -1.2,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  amountInput: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 56,
-    lineHeight: 64,
-    letterSpacing: -2.24,
-    minWidth: 80,
-    maxWidth: SCREEN_W - 80,
-    padding: 0,
-    includeFontPadding: false,
-  },
-
-  // Error
-  errorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.secondaryLight,
-    marginTop: -8,
-  },
-
-  // Section
-  section: { gap: 8 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: DS.text.muted,
-  },
-  optionalTag: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    color: DS.text.muted,
-    textTransform: 'none',
-    letterSpacing: 0,
-  },
-  emptyHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: DS.text.muted,
-    paddingVertical: 8,
-  },
-
-  // Category grid
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryCell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    borderRadius: DS.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1.5,
-    borderColor: DS.border.subtle,
-  },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    lineHeight: 14,
-    color: DS.text.muted,
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-  showMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-  },
-  showMoreText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-
-  // Details card
-  detailsCard: {
-    backgroundColor: DS.surface.card,
-    borderRadius: DS.radius.xl,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    overflow: 'hidden',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  detailIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailContent: { flex: 1 },
-  detailLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-    color: DS.text.muted,
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  detailPlaceholder: { color: DS.text.muted },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DS.border.subtle,
-    marginLeft: 64,
-  },
-
-  // Text inputs
-  inputWrap: {
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.md,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    paddingHorizontal: 14,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  notesWrap: {
-    minHeight: 88,
-    paddingVertical: 10,
-    justifyContent: 'flex-start',
-  },
-  textInput: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 22,
-    color: DS.text.primary,
-    padding: 0,
-  },
-  notesInput: {
-    minHeight: 68,
-  },
-
-  // Footer / save button
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: DS.border.subtle,
-    backgroundColor: DS.surface.screen,
-  },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 54,
-    borderRadius: DS.radius.md,
-  },
-  saveBtnText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 17,
-    lineHeight: 22,
-    color: '#fff',
-  },
-
-  // Date sheet
-  dateSheetBody: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  dateChips: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  dateChip: {
-    flex: 1,
-    height: 44,
-    borderRadius: DS.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-  },
-  dateChipActive: { backgroundColor: hexToRgba(DS.primary, 0.18), borderColor: DS.primary },
-  dateChipText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.muted,
-  },
-  dateChipTextActive: { color: DS.primaryLight },
-  dayNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DS.surface.elevated,
-    borderRadius: DS.radius.lg,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  dayNavBtn: {
-    width: 48,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayNavLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  dateConfirmBtn: {
-    height: 52,
-    borderRadius: DS.radius.md,
-    backgroundColor: DS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateConfirmText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: '#fff',
-  },
-
-  // Account sheet
-  accountSheetBody: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 6 },
-  accountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: DS.radius.lg,
-    backgroundColor: DS.surface.elevated,
-    borderWidth: 1,
-    borderColor: DS.border.subtle,
-  },
-  accountRowSelected: {
-    borderColor: DS.primary,
-    backgroundColor: hexToRgba(DS.primary, 0.08),
-  },
-  accountRowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  accountRowName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
-    color: DS.text.primary,
-  },
-  accountRowBal: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: DS.text.muted,
-  },
-
-  // Success overlay
-  successOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-  },
-  successCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: DS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: DS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  successText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    lineHeight: 32,
-    color: '#fff',
-    letterSpacing: -0.5,
-  },
-});

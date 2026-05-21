@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DS } from '../constants';
+import { DSType } from '../constants/colors';
+import { useDS } from '../hooks/useDS';
 
 interface AppHeaderProps {
   title: string;
@@ -12,6 +13,46 @@ interface AppHeaderProps {
   rightLabel?: string;
 }
 
+function makeStyles(ds: DSType) {
+  return StyleSheet.create({
+    container: {
+      backgroundColor: ds.surface.screen,
+      borderBottomWidth: 1,
+      borderBottomColor: ds.border.subtle,
+    },
+    row: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+    },
+    side: {
+      width: 44,
+    },
+    sideRight: {
+      alignItems: 'flex-end',
+    },
+    iconBtn: {
+      padding: 4,
+    },
+    title: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 20,
+      lineHeight: 28,
+      letterSpacing: -0.2,
+      color: ds.text.primary,
+    },
+    rightLabel: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.primaryLight,
+    },
+  });
+}
+
 export default function AppHeader({
   title,
   onBack,
@@ -19,6 +60,8 @@ export default function AppHeader({
   onRightPress,
   rightLabel,
 }: AppHeaderProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
   const insets = useSafeAreaInsets();
 
   return (
@@ -35,7 +78,7 @@ export default function AppHeader({
               <MaterialCommunityIcons
                 name="chevron-left"
                 size={28}
-                color={DS.text.primary}
+                color={ds.text.primary}
               />
             </TouchableOpacity>
           )}
@@ -61,7 +104,7 @@ export default function AppHeader({
                   <MaterialCommunityIcons
                     name={rightIcon}
                     size={24}
-                    color={DS.text.primary}
+                    color={ds.text.primary}
                   />
                 )
               )}
@@ -72,41 +115,3 @@ export default function AppHeader({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: DS.surface.screen,
-    borderBottomWidth: 1,
-    borderBottomColor: DS.border.subtle,
-  },
-  row: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-  },
-  side: {
-    width: 44,
-  },
-  sideRight: {
-    alignItems: 'flex-end',
-  },
-  iconBtn: {
-    padding: 4,
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 20,
-    lineHeight: 28,
-    letterSpacing: -0.2,
-    color: DS.text.primary,
-  },
-  rightLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 14,
-    lineHeight: 20,
-    color: DS.primaryLight,
-  },
-});
