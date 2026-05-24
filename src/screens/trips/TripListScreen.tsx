@@ -557,6 +557,14 @@ function makeStyles(ds: DSType) {
       paddingTop: 8,
       paddingBottom: 16,
     },
+    backBtn: {
+      padding: 4,
+      marginLeft: -4,
+      marginRight: 4,
+    },
+    headerTitles: {
+      flex: 1,
+    },
     screenTitle: {
       fontFamily: 'Inter_700Bold',
       fontSize: 24,
@@ -717,7 +725,10 @@ export default function TripListScreen() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={s.header}>
-        <View>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="chevron-left" size={28} color={ds.text.primary} />
+        </TouchableOpacity>
+        <View style={s.headerTitles}>
           <Text style={s.screenTitle}>My Trips</Text>
           <Text style={s.screenSub}>{enriched.length} trips · {activeCount} active</Text>
         </View>

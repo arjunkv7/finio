@@ -8,14 +8,18 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BrandHeader from '../components/BrandHeader';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
-import { RootTabParamList } from '../types';
+import { RootTabParamList, RootStackParamList } from '../types';
 
-type Nav = BottomTabNavigationProp<RootTabParamList, 'More'>;
+type Nav = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList, 'More'>,
+  StackNavigationProp<RootStackParamList>
+>;
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -25,7 +29,7 @@ interface ServiceItem {
   description: string;
   icon: IconName;
   iconBg: string;
-  target: keyof RootTabParamList;
+  target: keyof RootStackParamList;
 }
 
 interface SupportItem {

@@ -6,9 +6,10 @@ import { useDS } from '../hooks/useDS';
 
 interface BrandHeaderProps {
   right?: React.ReactNode;
+  onBack?: () => void;
 }
 
-export default function BrandHeader({ right }: BrandHeaderProps) {
+export default function BrandHeader({ right, onBack }: BrandHeaderProps) {
   const ds = useDS();
   const insets = useSafeAreaInsets();
 
@@ -22,13 +23,19 @@ export default function BrandHeader({ right }: BrandHeaderProps) {
         },
       ]}
     >
-      {/* Brand */}
-      <View style={styles.brand}>
-        <View style={[styles.dot, { backgroundColor: ds.primary }]}>
-          <MaterialCommunityIcons name="leaf" size={18} color="#fff" />
+      {/* Left — back button or brand */}
+      {onBack != null ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="chevron-left" size={28} color={ds.text.primary} />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.brand}>
+          <View style={[styles.dot, { backgroundColor: ds.primary }]}>
+            <MaterialCommunityIcons name="leaf" size={18} color="#fff" />
+          </View>
+          <Text style={[styles.name, { color: ds.primary }]}>Finio</Text>
         </View>
-        <Text style={[styles.name, { color: ds.primary }]}>Finio</Text>
-      </View>
+      )}
 
       {/* Right slot — default: bell */}
       <View style={styles.rightSlot}>
@@ -60,6 +67,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  backBtn: {
+    padding: 4,
+    marginLeft: -4,
   },
   dot: {
     width: 32,

@@ -854,7 +854,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader />
+      <BrandHeader onBack={() => navigation.goBack()} />
 
       <ScrollView
         style={styles.scroll}

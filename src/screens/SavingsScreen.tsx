@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BrandHeader from '../components/BrandHeader';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
@@ -708,6 +708,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
 export default function SavingsScreen() {
   const ds = useDS();
   const s = useMemo(() => makeStyles(ds), [ds]);
+  const navigation = useNavigation();
 
   const insets = useSafeAreaInsets();
   const { goals, isLoading, loadFromDB, addGoal } = useSavingsStore();
@@ -829,7 +830,7 @@ export default function SavingsScreen() {
 
   return (
     <View style={s.root}>
-      <BrandHeader />
+      <BrandHeader onBack={() => navigation.goBack()} />
 
       <ScrollView
         style={s.scroll}

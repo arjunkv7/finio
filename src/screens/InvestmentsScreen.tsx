@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BrandHeader from '../components/BrandHeader';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
@@ -424,6 +424,7 @@ export default function InvestmentsScreen() {
   const ds = useDS();
   const s = useMemo(() => makeStyles(ds), [ds]);
   const ASSET_META = useMemo(() => makeAssetMeta(ds), [ds]);
+  const navigation = useNavigation();
 
   const insets = useSafeAreaInsets();
   const { investments, totalInvested, summaryByType, isLoading, loadFromDB, addInvestment, deleteInvestment } = useInvestmentsStore();
@@ -507,7 +508,7 @@ export default function InvestmentsScreen() {
 
   return (
     <View style={s.root}>
-      <BrandHeader />
+      <BrandHeader onBack={() => navigation.goBack()} />
 
       <SectionList
         sections={sections}

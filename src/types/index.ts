@@ -5,12 +5,6 @@ export type RootTabParamList = {
   History: undefined;
   Reports: undefined;
   More: undefined;
-  // Secondary tabs (hidden from tab bar, navigable from More)
-  Accounts: undefined;
-  Trips: undefined;
-  Savings: undefined;
-  Investments: undefined;
-  Settings: undefined;
 };
 
 export type AccountsStackParamList = {
@@ -31,4 +25,9 @@ export type RootStackParamList = {
     editTx?: import('./db').Transaction;
   } | undefined;
   ExportScreen: undefined;
+  Accounts: undefined;
+  Trips: undefined;
+  Savings: undefined;
+  Investments: undefined;
+  Settings: undefined;
 };

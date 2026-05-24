@@ -4,6 +4,11 @@ import { RootStackParamList } from '../types';
 import TabNavigator from './TabNavigator';
 import AddTransactionScreen from '../screens/AddTransactionScreen';
 import ExportScreen from '../screens/ExportScreen';
+import AccountsStack from './AccountsStack';
+import TripsStack from './TripsStack';
+import SavingsScreen from '../screens/SavingsScreen';
+import InvestmentsScreen from '../screens/InvestmentsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -17,6 +22,11 @@ export default function RootNavigator() {
         options={{ presentation: 'modal', gestureEnabled: true }}
       />
       <Stack.Screen name="ExportScreen" component={ExportScreen} />
+      <Stack.Screen name="Accounts"    component={AccountsStack} />
+      <Stack.Screen name="Trips"       component={TripsStack} />
+      <Stack.Screen name="Savings"     component={SavingsScreen} />
+      <Stack.Screen name="Investments" component={InvestmentsScreen} />
+      <Stack.Screen name="Settings"    component={SettingsScreen} />
     </Stack.Navigator>
   );
 }

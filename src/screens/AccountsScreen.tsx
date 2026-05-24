@@ -282,6 +282,7 @@ export default function AccountsScreen() {
   return (
     <View style={styles.root}>
       <BrandHeader
+        onBack={() => navigation.goBack()}
         right={
           <TouchableOpacity style={styles.addAccountBtn} onPress={() => navigation.navigate('AddAccount')} activeOpacity={0.8}>
             <MaterialCommunityIcons name="plus" size={16} color="#fff" />
