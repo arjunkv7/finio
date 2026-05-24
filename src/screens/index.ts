@@ -1,4 +1,5 @@
 export { default as HomeScreen } from './HomeScreen';
+export { default as MoreScreen } from './MoreScreen';
 export { default as AccountsScreen } from './AccountsScreen';
 export { default as AddAccountScreen } from './AddAccountScreen';
 export { default as AddTransactionScreen } from './AddTransactionScreen';

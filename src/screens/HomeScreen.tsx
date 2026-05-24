@@ -246,7 +246,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -438,15 +438,6 @@ export default function HomeScreen() {
         )}
 
       </ScrollView>
-
-      {/* ── FAB ── */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 72 }]}
-        onPress={() => navigation.navigate('AddTransaction')}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-      </TouchableOpacity>
 
     </View>
   );
@@ -794,17 +785,5 @@ function makeStyles(ds: DSType) {
       textAlign: 'center',
     },
 
-    // FAB
-    fab: {
-      position: 'absolute',
-      right: 20,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: ds.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...ds.shadow.modal,
-    },
   });
 }

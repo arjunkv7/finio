@@ -2,8 +2,11 @@ export * from './db';
 
 export type RootTabParamList = {
   Home: undefined;
-  Accounts: undefined;
+  History: undefined;
   Reports: undefined;
+  More: undefined;
+  // Secondary tabs (hidden from tab bar, navigable from More)
+  Accounts: undefined;
   Trips: undefined;
   Savings: undefined;
   Investments: undefined;
