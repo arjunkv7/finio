@@ -163,7 +163,7 @@ function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer,
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Transfer Funds">
-      <View style={styles.sheetBody}>
+      <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* From */}
         <Text style={styles.fieldLabel}>From</Text>
         <View style={styles.pickerRow}>
@@ -229,7 +229,7 @@ function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer,
           loading={busy}
           style={{ marginTop: 24 }}
         />
-      </View>
+      </ScrollView>
     </BottomSheet>
   );
 }

@@ -8,8 +8,6 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Animated,
 } from 'react-native';
@@ -26,7 +24,7 @@ import { useInvestmentsStore } from '../store/investmentsStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { Investment, AssetType, CreateInvestmentInput } from '../types/db';
 import AppCard from '../components/AppCard';
-import BottomSheet from '../components/BottomSheet';
+import BottomSheet, { BottomSheetScrollView } from '../components/BottomSheet';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -598,8 +596,7 @@ export default function InvestmentsScreen() {
         onClose={() => { setShowAdd(false); resetForm(); }}
         title="Add Investment"
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView
+        <BottomSheetScrollView
             contentContainerStyle={s.sheetContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -704,8 +701,7 @@ export default function InvestmentsScreen() {
             >
               <Text style={s.ctaText}>{saving ? 'Saving…' : 'Add Investment'}</Text>
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </BottomSheetScrollView>
       </BottomSheet>
     </View>
   );

@@ -7,8 +7,6 @@ import {
   TextInput,
   ActivityIndicator,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -437,34 +435,31 @@ export default function BudgetScreen() {
         onClose={() => setSheetVisible(false)}
         title={sheetCategory ? `${sheetCategory.name} Budget` : 'Set Budget'}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.sheetBody}
-        >
-          <Text style={styles.sheetLabel}>Monthly limit ({sym})</Text>
-          <TextInput
-            style={styles.sheetInput}
-            value={limitInput}
-            onChangeText={setLimitInput}
-            placeholder="e.g. 5000"
-            placeholderTextColor={ds.text.muted}
-            keyboardType="numeric"
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
-          <TouchableOpacity
-            style={[styles.sheetSaveBtn, (!limitInput || saving) && styles.sheetSaveBtnDisabled]}
-            onPress={handleSave}
-            disabled={!limitInput || saving}
-            activeOpacity={0.8}
-          >
-            {saving
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.sheetSaveBtnTxt}>Save Budget</Text>
-            }
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
+        <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.sheetLabel}>Monthly limit ({sym})</Text>
+            <TextInput
+              style={styles.sheetInput}
+              value={limitInput}
+              onChangeText={setLimitInput}
+              placeholder="e.g. 5000"
+              placeholderTextColor={ds.text.muted}
+              keyboardType="numeric"
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
+            />
+            <TouchableOpacity
+              style={[styles.sheetSaveBtn, (!limitInput || saving) && styles.sheetSaveBtnDisabled]}
+              onPress={handleSave}
+              disabled={!limitInput || saving}
+              activeOpacity={0.8}
+            >
+              {saving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.sheetSaveBtnTxt}>Save Budget</Text>
+              }
+            </TouchableOpacity>
+          </ScrollView>
       </BottomSheet>
     </View>
   );

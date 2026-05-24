@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -206,8 +204,7 @@ function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetPro
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Add Participants">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={ps.body}>
+      <View style={ps.body}>
           <View style={ps.inputRow}>
             <View style={[ps.inputWrap, error ? ps.inputWrapError : null]}>
               <MaterialCommunityIcons name="account-outline" size={18} color={ds.text.muted} />
@@ -249,8 +246,7 @@ function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetPro
               {saving ? 'Adding…' : pendingNames.length > 0 ? `Add ${pendingNames.length} Participant${pendingNames.length > 1 ? 's' : ''}` : 'Add Participant'}
             </Text>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
     </BottomSheet>
   );
 }

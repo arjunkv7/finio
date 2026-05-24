@@ -11,8 +11,6 @@ import {
   Alert,
   Modal,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -461,8 +459,7 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
         onClose={() => setShowForm(false)}
         title={editCat ? (editCat.is_system ? 'View Category' : 'Edit Category') : 'New Category'}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Type (add only) */}
             {!editCat && (
               <>
@@ -538,7 +535,6 @@ function ManageCategoriesView({ onBack }: ManageCatProps) {
               </TouchableOpacity>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
       </BottomSheet>
     </View>
   );

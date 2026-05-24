@@ -9,8 +9,6 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -638,8 +636,7 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
         onClose={() => { setShowContrib(false); resetContribForm(); }}
         title="Add Contribution"
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView
+        <ScrollView
             contentContainerStyle={s.sheetContent}
             keyboardShouldPersistTaps="handled"
           >
@@ -697,7 +694,6 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
               <Text style={s.ctaText}>{saving ? 'Saving…' : 'Add Contribution'}</Text>
             </TouchableOpacity>
           </ScrollView>
-        </KeyboardAvoidingView>
       </BottomSheet>
     </View>
   );
@@ -898,8 +894,7 @@ export default function SavingsScreen() {
         onClose={() => { setShowCreate(false); resetCreateForm(); }}
         title="New Savings Goal"
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView
+        <ScrollView
             contentContainerStyle={s.sheetContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -1000,7 +995,6 @@ export default function SavingsScreen() {
               <Text style={s.ctaText}>{creating ? 'Creating…' : 'Create Goal'}</Text>
             </TouchableOpacity>
           </ScrollView>
-        </KeyboardAvoidingView>
       </BottomSheet>
     </View>
   );

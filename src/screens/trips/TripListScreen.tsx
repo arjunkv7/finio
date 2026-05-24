@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -265,8 +263,7 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
   return (
     <>
       <BottomSheet visible={visible} onClose={onClose} title="New Trip">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
+        <ScrollView
             style={{ maxHeight: 520 }}
             contentContainerStyle={cs.body}
             keyboardShouldPersistTaps="handled"
@@ -379,7 +376,6 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
               <Text style={cs.createBtnText}>{saving ? 'Creating…' : 'Create Trip'}</Text>
             </TouchableOpacity>
           </ScrollView>
-        </KeyboardAvoidingView>
       </BottomSheet>
 
       <DatePickerSheet
