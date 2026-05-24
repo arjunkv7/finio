@@ -12,8 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-// victory-native disabled until dev build — requires react-native-worklets native module
-// import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
+import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { useSettingsStore } from '../store/settingsStore';
@@ -492,8 +491,24 @@ export default function ReportsScreen() {
             </View>
 
             {hasAnyTrend ? (
-              <View style={{ height: CHART_H, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={styles.emptyTxt}>Charts available in dev build</Text>
+              <View style={{ height: CHART_H }}>
+                <CartesianChart
+                  data={trendData as any}
+                  xKey="x"
+                  yKeys={['income', 'expenses'] as any}
+                  domainPadding={{ left: 10, right: 10, top: 10 }}
+                >
+                  {({ points, chartBounds }: any) => (
+                    <BarGroup
+                      chartBounds={chartBounds}
+                      betweenGroupPadding={0.3}
+                      withinGroupPadding={0.05}
+                    >
+                      <BarGroup.Bar points={points.income} color={ds.primary} />
+                      <BarGroup.Bar points={points.expenses} color={ds.secondary} />
+                    </BarGroup>
+                  )}
+                </CartesianChart>
               </View>
             ) : (
               <View style={styles.emptyChart}>
@@ -514,8 +529,15 @@ export default function ReportsScreen() {
             {catRows.length > 0 ? (
               <>
                 <View style={styles.donutRow}>
-                  <View style={{ width: PIE_SIZE, height: PIE_SIZE, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={styles.emptyTxt}>Chart in{'\n'}dev build</Text>
+                  <View style={{ width: PIE_SIZE, height: PIE_SIZE }}>
+                    <PolarChart
+                      data={catRows.slice(0, 5).map(r => ({ value: r.amount, color: r.color, label: r.name }))}
+                      labelKey="label"
+                      valueKey="value"
+                      colorKey="color"
+                    >
+                      <Pie.Chart innerRadius="40%" />
+                    </PolarChart>
                   </View>
                   <View style={styles.pieLegend}>
                     {catRows.slice(0, 5).map(r => (
