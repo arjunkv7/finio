@@ -26,8 +26,8 @@ import { useSettingsStore } from '../store/settingsStore';
 import { Transaction, TransactionFilter } from '../types';
 import { getTransactionsPaginated, getMonthlySummary } from '../db/queries';
 import TransactionListItem from '../components/TransactionListItem';
-import BottomSheet from '../components/BottomSheet';
 import EmptyState from '../components/EmptyState';
+import MonthPickerSheet from '../components/MonthPickerSheet';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -84,61 +84,6 @@ function formatPaise(paise: number, symbol: string): string {
   return `${symbol}${(Math.abs(paise) / 100).toLocaleString('en-IN', {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   })}`;
-}
-
-// ── Month picker sheet ────────────────────────────────────────────────────────
-
-interface MonthPickerSheetProps {
-  visible: boolean;
-  onClose: () => void;
-  year: number;
-  month: number;
-  onChange: (year: number, month: number) => void;
-  ds: DSType;
-  styles: ReturnType<typeof makeStyles>;
-}
-
-function MonthPickerSheet({ visible, onClose, year, month, onChange, ds, styles }: MonthPickerSheetProps) {
-  const [ly, setLy] = useState(year);
-  const [lm, setLm] = useState(month);
-  const now = new Date();
-  const isAtNow = ly === now.getFullYear() && lm === now.getMonth() + 1;
-
-  useEffect(() => { if (visible) { setLy(year); setLm(month); } }, [visible, year, month]);
-
-  const step = (delta: number) => {
-    let nm = lm + delta;
-    let ny = ly;
-    if (nm > 12) { nm = 1; ny++; }
-    if (nm < 1)  { nm = 12; ny--; }
-    if (ny > now.getFullYear() || (ny === now.getFullYear() && nm > now.getMonth() + 1)) return;
-    setLy(ny); setLm(nm);
-  };
-
-  const confirm = () => { onChange(ly, lm); onClose(); };
-
-  return (
-    <BottomSheet visible={visible} onClose={onClose} title="Select Month">
-      <View style={styles.pickerBody}>
-        <View style={styles.pickerRow}>
-          <TouchableOpacity style={styles.pickerArrow} onPress={() => step(-1)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="chevron-left" size={26} color={ds.text.secondary} />
-          </TouchableOpacity>
-          <Text style={styles.pickerLabel}>{MONTH_NAMES[lm - 1]} {ly}</Text>
-          <TouchableOpacity
-            style={styles.pickerArrow} onPress={() => step(1)}
-            disabled={isAtNow} activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="chevron-right" size={26}
-              color={isAtNow ? ds.text.muted : ds.text.secondary} />
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={styles.pickerConfirmBtn} onPress={confirm} activeOpacity={0.85}>
-          <Text style={styles.pickerConfirmText}>Show {MONTH_NAMES[lm - 1]} {ly}</Text>
-        </TouchableOpacity>
-      </View>
-    </BottomSheet>
-  );
 }
 
 // ── Monthly summary footer ────────────────────────────────────────────────────
@@ -370,10 +315,24 @@ export default function HistoryScreen() {
     );
   }, [getCategoryById, accountName, handleEdit, handleDelete, ds, styles]);
 
-  // ── Header component (search + chips) ────────────────────────────────────
+  // ── Header component (summary + search + chips) ──────────────────────────
 
   const ListHeader = (
     <View style={styles.listHeader}>
+      {/* Monthly summary */}
+      {!isLoading && (
+        <SummaryBar
+          income={monthSummary.income}
+          expenses={monthSummary.expenses}
+          net={monthSummary.net}
+          year={year}
+          month={month}
+          currencySymbol={currencySymbol}
+          ds={ds}
+          styles={styles}
+        />
+      )}
+
       {/* Search */}
       <View style={styles.searchRow}>
         <MaterialCommunityIcons name="magnify" size={20} color={ds.text.muted} style={styles.searchIcon} />
@@ -435,18 +394,6 @@ export default function HistoryScreen() {
         <View style={styles.loadingMore}>
           <ActivityIndicator size="small" color={ds.primary} />
         </View>
-      )}
-      {!hasMore && items.length > 0 && (
-        <SummaryBar
-          income={monthSummary.income}
-          expenses={monthSummary.expenses}
-          net={monthSummary.net}
-          year={year}
-          month={month}
-          currencySymbol={currencySymbol}
-          ds={ds}
-          styles={styles}
-        />
       )}
       <View style={{ height: insets.bottom + 80 }} />
     </View>
@@ -519,7 +466,6 @@ export default function HistoryScreen() {
         month={month}
         onChange={handleMonthChange}
         ds={ds}
-        styles={styles}
       />
     </View>
   );
@@ -622,23 +568,6 @@ function makeStyles(ds: DSType) {
     loadingMore: { paddingVertical: 20, alignItems: 'center' },
     loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
 
-    // Month picker sheet (formerly `ps`)
-    pickerBody: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 8 },
-    pickerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-    pickerArrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    pickerLabel: {
-      flex: 1, textAlign: 'center',
-      fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28,
-      letterSpacing: -0.44, color: ds.text.primary,
-    },
-    pickerConfirmBtn: {
-      height: 52, borderRadius: ds.radius.md, backgroundColor: ds.primary,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    pickerConfirmText: {
-      fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 22, color: '#fff',
-    },
-
     // Summary bar (formerly `sb`)
     summaryContainer: {
       margin: 16,
@@ -664,5 +593,6 @@ function makeStyles(ds: DSType) {
       fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
     },
     summaryDivider: { width: 1, height: 36, backgroundColor: ds.border.subtle, marginHorizontal: 8 },
+
   });
 }

@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import BrandHeader from '../components/BrandHeader';
+import MonthPickerSheet from '../components/MonthPickerSheet';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { DSType } from '../constants/colors';
@@ -181,6 +182,7 @@ export default function HomeScreen() {
   const insets         = useSafeAreaInsets();
   const { currencySymbol } = useSettingsStore();
   const [privacyHidden, setPrivacyHidden] = useState(false);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   const { totalBalance, loadFromDB: loadAccounts }         = useAccountsStore();
   const { getCategoryById, loadFromDB: loadCategories }    = useCategoriesStore();
@@ -202,30 +204,11 @@ export default function HomeScreen() {
     ? Math.max(0, (monthlySummary.net / monthlySummary.income) * 100)
     : 0;
 
-  const now            = new Date();
-  const isCurrentMonth = activeMonth.year === now.getFullYear()
-                      && activeMonth.month === now.getMonth() + 1;
-
   const formatBal = (paise: number) =>
     (Math.abs(paise) / 100).toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-
-  // ── Month navigation ──────────────────────────────────────────────────────────
-
-  const goPrev = () => {
-    let { year, month } = activeMonth;
-    if (month === 1) { year -= 1; month = 12; } else { month -= 1; }
-    setActiveMonth(year, month);
-  };
-
-  const goNext = () => {
-    if (isCurrentMonth) return;
-    let { year, month } = activeMonth;
-    if (month === 12) { year += 1; month = 1; } else { month += 1; }
-    setActiveMonth(year, month);
-  };
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -259,26 +242,11 @@ export default function HomeScreen() {
       >
 
         {/* ── Month Navigator ── */}
-        <View style={styles.monthNav}>
-          <TouchableOpacity onPress={goPrev} style={styles.monthArrow} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <MaterialCommunityIcons name="chevron-left" size={22} color={ds.text.secondary} />
-          </TouchableOpacity>
-          <Text style={styles.monthLabel}>
-            {MONTHS[activeMonth.month - 1]} {activeMonth.year}
-          </Text>
-          <TouchableOpacity
-            onPress={goNext}
-            style={styles.monthArrow}
-            activeOpacity={isCurrentMonth ? 1 : 0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={22}
-              color={isCurrentMonth ? ds.surface.elevated : ds.text.secondary}
-            />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.monthBtn} onPress={() => setMonthPickerOpen(true)} activeOpacity={0.75}>
+          <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
+          <Text style={styles.monthBtnText}>{MONTHS[activeMonth.month - 1]} {activeMonth.year}</Text>
+          <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
+        </TouchableOpacity>
 
         {/* ── Net Balance Hero ── */}
         <AppCard padding={22} style={styles.heroCard}>
@@ -360,10 +328,12 @@ export default function HomeScreen() {
               ].map(({ label, value, color }) => (
                 <View key={label} style={styles.legendRow}>
                   <View style={[styles.legendDot, { backgroundColor: color }]} />
-                  <Text style={styles.legendLabel}>{label}</Text>
-                  <Text style={[styles.legendValue, { color }]}>
-                    {privacyHidden ? '••••' : `${value < 0 ? '−' : ''}${currencySymbol}${formatBal(Math.abs(value))}`}
-                  </Text>
+                  <View style={styles.legendRowContent}>
+                    <Text style={styles.legendLabel}>{label}</Text>
+                    <Text style={[styles.legendValue, { color }]} numberOfLines={1}>
+                      {privacyHidden ? '••••' : `${value < 0 ? '−' : ''}${currencySymbol}${formatBal(Math.abs(value))}`}
+                    </Text>
+                  </View>
                 </View>
               ))}
               <View style={styles.rateBadge}>
@@ -439,6 +409,14 @@ export default function HomeScreen() {
 
       </ScrollView>
 
+      <MonthPickerSheet
+        visible={monthPickerOpen}
+        onClose={() => setMonthPickerOpen(false)}
+        year={activeMonth.year}
+        month={activeMonth.month}
+        onChange={(y, m) => setActiveMonth(y, m)}
+        ds={ds}
+      />
     </View>
   );
 }
@@ -463,23 +441,17 @@ function makeStyles(ds: DSType) {
       justifyContent: 'center',
     },
 
-    // Month navigator — left-aligned row in scroll content
-    monthNav: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      gap: 8,
-      paddingVertical: 2,
+    monthBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderWidth: 1, borderColor: hexToRgba(ds.primary, 0.3),
     },
-    monthArrow: {
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    monthLabel: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 15,
-      lineHeight: 20,
-      color: ds.text.primary,
+    monthBtnText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+      color: ds.primaryLight,
     },
 
     scroll: { flex: 1 },
@@ -580,20 +552,24 @@ function makeStyles(ds: DSType) {
     },
     legendRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 8,
     },
     legendDot: {
       width: 7,
       height: 7,
       borderRadius: 4,
+      marginTop: 4,
+    },
+    legendRowContent: {
+      flex: 1,
+      gap: 1,
     },
     legendLabel: {
-      flex: 1,
       fontFamily: 'Inter_400Regular',
-      fontSize: 13,
-      lineHeight: 18,
-      color: ds.text.secondary,
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.muted,
     },
     legendValue: {
       fontFamily: 'Inter_600SemiBold',

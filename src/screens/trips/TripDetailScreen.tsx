@@ -67,13 +67,18 @@ const SPLIT_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityI
 interface AddParticipantSheetProps {
   visible: boolean;
   onClose: () => void;
-  onAdd: (name: string) => Promise<void>;
+  onAdd: (names: string[]) => Promise<void>;
 }
 
 function makePsStyles(ds: DSType) {
   return StyleSheet.create({
     body: { padding: 20, gap: 12 },
+    inputRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
     inputWrap: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: ds.surface.elevated,
@@ -84,7 +89,7 @@ function makePsStyles(ds: DSType) {
       height: 50,
       gap: 8,
     },
-    inputIcon: {},
+    inputWrapError: { borderColor: ds.secondary },
     input: {
       flex: 1,
       fontFamily: 'Inter_400Regular',
@@ -93,11 +98,47 @@ function makePsStyles(ds: DSType) {
       color: ds.text.primary,
       padding: 0,
     },
+    addChipBtn: {
+      height: 50,
+      paddingHorizontal: 14,
+      borderRadius: ds.radius.md,
+      backgroundColor: hexToRgba(ds.primary, 0.15),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addChipBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.primaryLight,
+    },
     error: {
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
       lineHeight: 16,
       color: ds.secondaryLight,
+    },
+    chipsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba(ds.primary, 0.25),
+    },
+    chipText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.primaryLight,
     },
     btn: {
       flexDirection: 'row',
@@ -121,38 +162,82 @@ function makePsStyles(ds: DSType) {
 function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetProps) {
   const ds = useDS();
   const ps = useMemo(() => makePsStyles(ds), [ds]);
-  const [name, setName] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [pendingNames, setPendingNames] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { if (!visible) { setName(''); setError(''); } }, [visible]);
+  useEffect(() => { if (!visible) { setInputValue(''); setPendingNames([]); setError(''); } }, [visible]);
+
+  const addToPending = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    const names = trimmed.split(',').map(n => n.trim()).filter(Boolean);
+    setPendingNames(prev => {
+      const existing = new Set(prev.map(p => p.toLowerCase()));
+      const toAdd = names.filter(n => !existing.has(n.toLowerCase()));
+      return [...prev, ...toAdd];
+    });
+    setInputValue('');
+    setError('');
+  };
+
+  const removePending = (index: number) => {
+    setPendingNames(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleAdd = async () => {
-    if (!name.trim()) { setError('Name is required.'); return; }
+    const trimmed = inputValue.trim();
+    const allNames = [...pendingNames];
+    if (trimmed) {
+      const extra = trimmed.split(',').map(n => n.trim()).filter(Boolean);
+      const existing = new Set(allNames.map(p => p.toLowerCase()));
+      extra.forEach(n => { if (!existing.has(n.toLowerCase())) { allNames.push(n); existing.add(n.toLowerCase()); } });
+    }
+    if (allNames.length === 0) { setError('Enter at least one name.'); return; }
     setSaving(true);
-    try { await onAdd(name.trim()); setName(''); onClose(); }
-    finally { setSaving(false); }
+    try {
+      await onAdd(allNames);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Add Participant">
+    <BottomSheet visible={visible} onClose={onClose} title="Add Participants">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={ps.body}>
-          <View style={ps.inputWrap}>
-            <MaterialCommunityIcons name="account-outline" size={18} color={ds.text.muted} style={ps.inputIcon} />
-            <TextInput
-              style={ps.input}
-              value={name}
-              onChangeText={(v) => { setName(v); if (v.trim()) setError(''); }}
-              placeholder="Participant name"
-              placeholderTextColor={ds.text.muted}
-              selectionColor={ds.primary}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleAdd}
-            />
+          <View style={ps.inputRow}>
+            <View style={[ps.inputWrap, error ? ps.inputWrapError : null]}>
+              <MaterialCommunityIcons name="account-outline" size={18} color={ds.text.muted} />
+              <TextInput
+                style={ps.input}
+                value={inputValue}
+                onChangeText={(v) => { setInputValue(v); if (v.trim()) setError(''); }}
+                placeholder="Name or comma-separated names"
+                placeholderTextColor={ds.text.muted}
+                selectionColor={ds.primary}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={addToPending}
+              />
+            </View>
+            <TouchableOpacity style={ps.addChipBtn} onPress={addToPending} activeOpacity={0.75}>
+              <Text style={ps.addChipBtnText}>Add</Text>
+            </TouchableOpacity>
           </View>
           {error ? <Text style={ps.error}>{error}</Text> : null}
+          {pendingNames.length > 0 && (
+            <View style={ps.chipsWrap}>
+              {pendingNames.map((name, i) => (
+                <TouchableOpacity key={`${name}-${i}`} style={ps.chip} onPress={() => removePending(i)} activeOpacity={0.75}>
+                  <Text style={ps.chipText}>{name}</Text>
+                  <MaterialCommunityIcons name="close-circle" size={14} color={ds.primaryLight} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <TouchableOpacity
             style={[ps.btn, saving && { opacity: 0.6 }]}
             onPress={handleAdd}
@@ -160,7 +245,9 @@ function AddParticipantSheet({ visible, onClose, onAdd }: AddParticipantSheetPro
             activeOpacity={0.85}
           >
             {saving ? <ActivityIndicator size="small" color="#fff" /> : null}
-            <Text style={ps.btnText}>{saving ? 'Adding…' : 'Add Participant'}</Text>
+            <Text style={ps.btnText}>
+              {saving ? 'Adding…' : pendingNames.length > 0 ? `Add ${pendingNames.length} Participant${pendingNames.length > 1 ? 's' : ''}` : 'Add Participant'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -183,7 +270,7 @@ function makeErStyles(ds: DSType) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 14,
+      paddingHorizontal: 0,
       paddingVertical: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: ds.border.subtle,
@@ -266,124 +353,6 @@ function ExpenseRow({ expense, participants, currencySymbol, getCategoryName }: 
   );
 }
 
-// ── Settlement Card ───────────────────────────────────────────────────────────
-
-interface SettlementBarProps {
-  currencySymbol: string;
-}
-
-function makeSbStyles(ds: DSType) {
-  return StyleSheet.create({
-    card: {
-      backgroundColor: ds.surface.card,
-      borderRadius: ds.radius.xl,
-      borderWidth: 1,
-      borderColor: ds.border.subtle,
-      padding: 16,
-      gap: 10,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 2,
-    },
-    headerText: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 15,
-      lineHeight: 20,
-      color: ds.text.primary,
-    },
-    allSettledSub: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 20,
-      color: ds.text.muted,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    avatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarText: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 12,
-      lineHeight: 16,
-    },
-    rowBody: { flex: 1 },
-    rowText: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      lineHeight: 20,
-      color: ds.text.secondary,
-    },
-    nameHighlight: {
-      fontFamily: 'Inter_600SemiBold',
-      color: ds.text.primary,
-    },
-    amt: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 15,
-      lineHeight: 20,
-      color: ds.tertiaryLight,
-    },
-  });
-}
-
-function SettlementBar({ currencySymbol }: SettlementBarProps) {
-  const ds = useDS();
-  const sb = useMemo(() => makeSbStyles(ds), [ds]);
-  const { activeTrip } = useTripsStore();
-  const settlement = activeTrip?.settlement ?? [];
-
-  if (settlement.length === 0) {
-    return (
-      <View style={sb.card}>
-        <View style={sb.header}>
-          <MaterialCommunityIcons name="check-circle-outline" size={18} color={ds.primary} />
-          <Text style={sb.headerText}>All settled!</Text>
-        </View>
-        <Text style={sb.allSettledSub}>No outstanding balances.</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={sb.card}>
-      <View style={sb.header}>
-        <MaterialCommunityIcons name="swap-horizontal" size={18} color={ds.tertiary} />
-        <Text style={sb.headerText}>Settlement Summary</Text>
-      </View>
-      {settlement.map((s, i) => {
-        const amt = (s.amount / 100).toLocaleString('en-IN', {
-          minimumFractionDigits: 2, maximumFractionDigits: 2,
-        });
-        return (
-          <View key={i} style={sb.row}>
-            <View style={[sb.avatar, { backgroundColor: hexToRgba(ds.secondary, 0.15) }]}>
-              <Text style={[sb.avatarText, { color: ds.secondaryLight }]}>{initials(s.from_name)}</Text>
-            </View>
-            <View style={sb.rowBody}>
-              <Text style={sb.rowText}>
-                <Text style={sb.nameHighlight}>{s.from_name}</Text>
-                <Text style={sb.rowText}> pays </Text>
-                <Text style={sb.nameHighlight}>{s.to_name}</Text>
-              </Text>
-            </View>
-            <Text style={sb.amt}>{currencySymbol}{amt}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
@@ -471,6 +440,98 @@ function makeStyles(ds: DSType) {
       lineHeight: 18,
       color: ds.text.muted,
       marginTop: 4,
+    },
+    totalDivider: {
+      width: '100%',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: ds.border.subtle,
+      marginVertical: 14,
+    },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+    summaryStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    summaryDot: { width: 8, height: 8, borderRadius: 4 },
+    summaryStatLabel: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.muted,
+      marginBottom: 2,
+    },
+    summaryStatValue: { fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18 },
+    summaryDivider: { width: 1, height: 36, backgroundColor: ds.border.subtle, marginHorizontal: 8 },
+
+    tabBar: {
+      flexDirection: 'row',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: ds.border.subtle,
+    },
+    tabBtn: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabBtnActive: { borderBottomColor: ds.primary },
+    tabBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.muted,
+    },
+    tabBtnTextActive: { color: ds.primary },
+
+    settleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: ds.border.subtle,
+    },
+    settleAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    settleAvatarText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    settleBody: { flex: 1 },
+    settleNames: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    settleSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+      marginTop: 1,
+    },
+    settleAmt: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.tertiaryLight,
+    },
+    settleAllDone: {
+      alignItems: 'center',
+      paddingVertical: 32,
+      gap: 8,
+    },
+    settleAllDoneText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.muted,
     },
 
     section: { gap: 0 },
@@ -635,6 +696,7 @@ export default function TripDetailScreen() {
 
   const [addParticipantOpen, setAddParticipantOpen] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [activeTab, setActiveTab] = useState<'expenses' | 'settlement'>('expenses');
 
   useFocusEffect(
     useCallback(() => {
@@ -659,8 +721,10 @@ export default function TripDetailScreen() {
     }
   };
 
-  const handleAddParticipant = useCallback(async (name: string) => {
-    await addParticipant({ trip_id: tripId, name });
+  const handleAddParticipant = useCallback(async (names: string[]) => {
+    for (const name of names) {
+      await addParticipant({ trip_id: tripId, name });
+    }
   }, [addParticipant, tripId]);
 
   if (!activeTrip || activeTrip.trip.id !== tripId) {
@@ -678,9 +742,14 @@ export default function TripDetailScreen() {
     );
   }
 
-  const { trip, participants, expenses, total } = activeTrip;
+  const { trip, participants, expenses, total, settlement } = activeTrip;
   const isSettled = trip.is_settled === 1;
+  const allSettled = settlement.length === 0;
+  const toSettle = settlement.reduce((acc, s) => acc + s.amount, 0);
   const totalDisplay = (total / 100).toLocaleString('en-IN', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+  const settleDisplay = (toSettle / 100).toLocaleString('en-IN', {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
 
@@ -713,11 +782,41 @@ export default function TripDetailScreen() {
         contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 180 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Trip total stat ── */}
+        {/* ── Trip total card ── */}
         <View style={s.totalCard}>
           <Text style={s.totalLabel}>TOTAL TRIP SPEND</Text>
           <Text style={s.totalAmount}>{currencySymbol}{totalDisplay}</Text>
           <Text style={s.totalSub}>{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</Text>
+          <View style={s.totalDivider} />
+          <View style={s.summaryRow}>
+            <View style={s.summaryStat}>
+              <View style={[s.summaryDot, { backgroundColor: ds.primary }]} />
+              <View>
+                <Text style={s.summaryStatLabel}>Expenses</Text>
+                <Text style={[s.summaryStatValue, { color: ds.primaryLight }]}>{currencySymbol}{totalDisplay}</Text>
+              </View>
+            </View>
+            <View style={s.summaryDivider} />
+            <View style={s.summaryStat}>
+              <View style={[s.summaryDot, { backgroundColor: ds.secondary }]} />
+              <View>
+                <Text style={s.summaryStatLabel}>To Settle</Text>
+                <Text style={[s.summaryStatValue, { color: allSettled ? ds.primaryLight : ds.secondaryLight }]}>
+                  {allSettled ? 'Cleared' : `${currencySymbol}${settleDisplay}`}
+                </Text>
+              </View>
+            </View>
+            <View style={s.summaryDivider} />
+            <View style={s.summaryStat}>
+              <View style={[s.summaryDot, { backgroundColor: allSettled ? ds.primary : ds.tertiary }]} />
+              <View>
+                <Text style={s.summaryStatLabel}>Status</Text>
+                <Text style={[s.summaryStatValue, { color: allSettled ? ds.primaryLight : ds.tertiaryLight }]}>
+                  {allSettled ? 'Settled' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* ── Participants ── */}
@@ -754,18 +853,32 @@ export default function TripDetailScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Expenses ── */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Expenses</Text>
-          </View>
-          {expenses.length === 0 ? (
+        {/* ── Expenses / Settlement tabs ── */}
+        <View style={s.tabBar}>
+          <TouchableOpacity
+            style={[s.tabBtn, activeTab === 'expenses' && s.tabBtnActive]}
+            onPress={() => setActiveTab('expenses')}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.tabBtnText, activeTab === 'expenses' && s.tabBtnTextActive]}>Expenses</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.tabBtn, activeTab === 'settlement' && s.tabBtnActive]}
+            onPress={() => setActiveTab('settlement')}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.tabBtnText, activeTab === 'settlement' && s.tabBtnTextActive]}>Settlement</Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === 'expenses' ? (
+          expenses.length === 0 ? (
             <View style={s.emptyExpenses}>
               <MaterialCommunityIcons name="receipt-outline" size={36} color={ds.text.muted} />
               <Text style={s.emptyExpensesText}>No expenses yet. Add one to get started.</Text>
             </View>
           ) : (
-            <View style={s.expenseList}>
+            <View>
               {expenses.map((expense) => (
                 <ExpenseRow
                   key={expense.id}
@@ -776,16 +889,36 @@ export default function TripDetailScreen() {
                 />
               ))}
             </View>
-          )}
-        </View>
-
-        {/* ── Settlement summary ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Settlement</Text>
-          <View style={{ marginTop: 8 }}>
-            <SettlementBar currencySymbol={currencySymbol} />
-          </View>
-        </View>
+          )
+        ) : (
+          allSettled ? (
+            <View style={s.settleAllDone}>
+              <MaterialCommunityIcons name="check-circle-outline" size={36} color={ds.primary} />
+              <Text style={s.settleAllDoneText}>No outstanding balances</Text>
+            </View>
+          ) : (
+            <View>
+              {settlement.map((sv, i) => {
+                const color = avatarColor(sv.from_name);
+                const amt = (sv.amount / 100).toLocaleString('en-IN', {
+                  minimumFractionDigits: 2, maximumFractionDigits: 2,
+                });
+                return (
+                  <View key={i} style={s.settleRow}>
+                    <View style={[s.settleAvatar, { backgroundColor: hexToRgba(color, 0.2) }]}>
+                      <Text style={[s.settleAvatarText, { color }]}>{initials(sv.from_name)}</Text>
+                    </View>
+                    <View style={s.settleBody}>
+                      <Text style={s.settleNames}>{sv.from_name} → {sv.to_name}</Text>
+                      <Text style={s.settleSub}>needs to pay</Text>
+                    </View>
+                    <Text style={s.settleAmt}>{currencySymbol}{amt}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )
+        )}
       </ScrollView>
 
       {/* ── Sticky action bar ── */}

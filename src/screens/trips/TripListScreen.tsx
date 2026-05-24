@@ -22,6 +22,7 @@ import { useTripsStore } from '../../store/tripsStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { getTripParticipants, getTripTotal } from '../../db/queries/tripQueries';
 import BottomSheet from '../../components/BottomSheet';
+import DatePickerSheet from '../../components/DatePickerSheet';
 import { Trip } from '../../types/db';
 import { TripsStackParamList } from '../../types';
 
@@ -68,7 +69,13 @@ function toISODate(d: Date): string {
 interface CreateTripSheetProps {
   visible: boolean;
   onClose: () => void;
-  onCreate: (name: string, start: string | null, end: string | null, desc: string | null) => Promise<void>;
+  onCreate: (name: string, start: string | null, end: string | null, desc: string | null, participants: string[]) => Promise<void>;
+}
+
+function formatDisplayDate(iso: string | null): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function makeCsStyles(ds: DSType) {
@@ -108,11 +115,78 @@ function makeCsStyles(ds: DSType) {
       color: ds.text.primary,
       padding: 0,
     },
+    inputPlaceholder: { color: ds.text.muted },
+    dateRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    dateIcon: {},
     errorText: {
       fontFamily: 'Inter_400Regular',
       fontSize: 12,
       lineHeight: 16,
       color: ds.secondaryLight,
+    },
+    participantInputRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    participantInput: {
+      flex: 1,
+      backgroundColor: ds.surface.elevated,
+      borderRadius: ds.radius.md,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      paddingHorizontal: 12,
+      height: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    participantInputText: {
+      flex: 1,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.text.primary,
+      padding: 0,
+    },
+    addChipBtn: {
+      height: 44,
+      paddingHorizontal: 14,
+      borderRadius: ds.radius.md,
+      backgroundColor: hexToRgba(ds.primary, 0.15),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addChipBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: ds.primaryLight,
+    },
+    chipsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba(ds.primary, 0.25),
+    },
+    chipText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+      color: ds.primaryLight,
     },
     createBtn: {
       flexDirection: 'row',
@@ -137,17 +211,38 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
   const ds = useDS();
   const cs = useMemo(() => makeCsStyles(ds), [ds]);
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [description, setDescription] = useState('');
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [participantInput, setParticipantInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState('');
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [endPickerOpen, setEndPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!visible) {
-      setName(''); setStartDate(''); setEndDate(''); setDescription(''); setNameError('');
+      setName(''); setStartDate(null); setEndDate(null); setDescription('');
+      setParticipants([]); setParticipantInput(''); setNameError('');
     }
   }, [visible]);
+
+  const addParticipantChip = () => {
+    const trimmed = participantInput.trim();
+    if (!trimmed) return;
+    const names = trimmed.split(',').map(n => n.trim()).filter(Boolean);
+    setParticipants(prev => {
+      const existing = new Set(prev.map(p => p.toLowerCase()));
+      const toAdd = names.filter(n => !existing.has(n.toLowerCase()));
+      return [...prev, ...toAdd];
+    });
+    setParticipantInput('');
+  };
+
+  const removeParticipant = (index: number) => {
+    setParticipants(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleCreate = async () => {
     if (!name.trim()) { setNameError('Trip name is required.'); return; }
@@ -155,9 +250,10 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
     try {
       await onCreate(
         name.trim(),
-        startDate.trim() || null,
-        endDate.trim() || null,
+        startDate,
+        endDate,
         description.trim() || null,
+        participants,
       );
       onClose();
     } finally {
@@ -166,88 +262,140 @@ function CreateTripSheet({ visible, onClose, onCreate }: CreateTripSheetProps) {
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="New Trip">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={cs.body}>
-          <View style={cs.field}>
-            <Text style={cs.label}>TRIP NAME</Text>
-            <View style={[cs.input, nameError ? cs.inputError : null]}>
-              <TextInput
-                style={cs.inputText}
-                value={name}
-                onChangeText={(v) => { setName(v); if (v.trim()) setNameError(''); }}
-                placeholder="e.g. Goa Weekend, Bali Summer…"
-                placeholderTextColor={ds.text.muted}
-                selectionColor={ds.primary}
-                autoFocus
-              />
-            </View>
-            {nameError ? <Text style={cs.errorText}>{nameError}</Text> : null}
-          </View>
-
-          <View style={cs.row}>
-            <View style={[cs.field, { flex: 1 }]}>
-              <Text style={cs.label}>START DATE</Text>
-              <View style={cs.input}>
-                <TextInput
-                  style={cs.inputText}
-                  value={startDate}
-                  onChangeText={setStartDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={ds.text.muted}
-                  selectionColor={ds.primary}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-            </View>
-            <View style={[cs.field, { flex: 1 }]}>
-              <Text style={cs.label}>END DATE</Text>
-              <View style={cs.input}>
-                <TextInput
-                  style={cs.inputText}
-                  value={endDate}
-                  onChangeText={setEndDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={ds.text.muted}
-                  selectionColor={ds.primary}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-            </View>
-          </View>
-
-          <View style={cs.field}>
-            <Text style={cs.label}>DESCRIPTION <Text style={cs.optional}>(optional)</Text></Text>
-            <View style={[cs.input, cs.inputMulti]}>
-              <TextInput
-                style={[cs.inputText, { textAlignVertical: 'top' }]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="What's this trip about?"
-                placeholderTextColor={ds.text.muted}
-                selectionColor={ds.primary}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[cs.createBtn, saving && { opacity: 0.6 }]}
-            onPress={handleCreate}
-            disabled={saving}
-            activeOpacity={0.85}
+    <>
+      <BottomSheet visible={visible} onClose={onClose} title="New Trip">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            style={{ maxHeight: 520 }}
+            contentContainerStyle={cs.body}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#fff" />
-            )}
-            <Text style={cs.createBtnText}>{saving ? 'Creating…' : 'Create Trip'}</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </BottomSheet>
+            <View style={cs.field}>
+              <Text style={cs.label}>TRIP NAME</Text>
+              <View style={[cs.input, nameError ? cs.inputError : null]}>
+                <TextInput
+                  style={cs.inputText}
+                  value={name}
+                  onChangeText={(v) => { setName(v); if (v.trim()) setNameError(''); }}
+                  placeholder="e.g. Goa Weekend, Bali Summer…"
+                  placeholderTextColor={ds.text.muted}
+                  selectionColor={ds.primary}
+                  autoFocus
+                />
+              </View>
+              {nameError ? <Text style={cs.errorText}>{nameError}</Text> : null}
+            </View>
+
+            <View style={cs.row}>
+              <View style={[cs.field, { flex: 1 }]}>
+                <Text style={cs.label}>START DATE</Text>
+                <TouchableOpacity
+                  style={[cs.input, cs.dateRow]}
+                  onPress={() => setStartPickerOpen(true)}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={16} color={startDate ? ds.text.secondary : ds.text.muted} style={cs.dateIcon} />
+                  <Text style={[cs.inputText, !startDate && cs.inputPlaceholder]} numberOfLines={1}>
+                    {startDate ? formatDisplayDate(startDate) : 'Pick date'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[cs.field, { flex: 1 }]}>
+                <Text style={cs.label}>END DATE</Text>
+                <TouchableOpacity
+                  style={[cs.input, cs.dateRow]}
+                  onPress={() => setEndPickerOpen(true)}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={16} color={endDate ? ds.text.secondary : ds.text.muted} style={cs.dateIcon} />
+                  <Text style={[cs.inputText, !endDate && cs.inputPlaceholder]} numberOfLines={1}>
+                    {endDate ? formatDisplayDate(endDate) : 'Pick date'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={cs.field}>
+              <Text style={cs.label}>DESCRIPTION <Text style={cs.optional}>(optional)</Text></Text>
+              <View style={[cs.input, cs.inputMulti]}>
+                <TextInput
+                  style={[cs.inputText, { textAlignVertical: 'top' }]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="What's this trip about?"
+                  placeholderTextColor={ds.text.muted}
+                  selectionColor={ds.primary}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
+
+            <View style={cs.field}>
+              <Text style={cs.label}>PARTICIPANTS <Text style={cs.optional}>(optional)</Text></Text>
+              <View style={cs.participantInputRow}>
+                <View style={cs.participantInput}>
+                  <MaterialCommunityIcons name="account-plus-outline" size={16} color={ds.text.muted} />
+                  <TextInput
+                    style={cs.participantInputText}
+                    value={participantInput}
+                    onChangeText={setParticipantInput}
+                    placeholder="Name or comma-separated names"
+                    placeholderTextColor={ds.text.muted}
+                    selectionColor={ds.primary}
+                    returnKeyType="done"
+                    onSubmitEditing={addParticipantChip}
+                  />
+                </View>
+                <TouchableOpacity style={cs.addChipBtn} onPress={addParticipantChip} activeOpacity={0.75}>
+                  <Text style={cs.addChipBtnText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              {participants.length > 0 && (
+                <View style={cs.chipsWrap}>
+                  {participants.map((p, i) => (
+                    <TouchableOpacity key={`${p}-${i}`} style={cs.chip} onPress={() => removeParticipant(i)} activeOpacity={0.75}>
+                      <Text style={cs.chipText}>{p}</Text>
+                      <MaterialCommunityIcons name="close-circle" size={14} color={ds.primaryLight} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[cs.createBtn, saving && { opacity: 0.6 }]}
+              onPress={handleCreate}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <MaterialCommunityIcons name="airplane-takeoff" size={20} color="#fff" />
+              )}
+              <Text style={cs.createBtnText}>{saving ? 'Creating…' : 'Create Trip'}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheet>
+
+      <DatePickerSheet
+        visible={startPickerOpen}
+        onClose={() => setStartPickerOpen(false)}
+        value={startDate}
+        onChange={setStartDate}
+        title="Start Date"
+      />
+      <DatePickerSheet
+        visible={endPickerOpen}
+        onClose={() => setEndPickerOpen(false)}
+        value={endDate}
+        onChange={setEndDate}
+        title="End Date"
+      />
+    </>
   );
 }
 
@@ -487,16 +635,20 @@ function makeStyles(ds: DSType) {
       textAlign: 'center',
     },
 
-    fab: {
-      position: 'absolute',
-      right: 20,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: ds.primary,
+    newTripBtn: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      ...ds.shadow.modal,
+      gap: 5,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: ds.radius.full,
+      backgroundColor: ds.primary,
+    },
+    newTripBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: '#fff',
     },
   });
 }
@@ -507,7 +659,7 @@ export default function TripListScreen() {
   const ds = useDS();
   const s = useMemo(() => makeStyles(ds), [ds]);
 
-  const { trips, loadFromDB, selectTrip, addTrip } = useTripsStore();
+  const { trips, loadFromDB, selectTrip, addTrip, addParticipant } = useTripsStore();
   const { currencySymbol } = useSettingsStore();
 
   const [enriched, setEnriched] = useState<TripCard[]>([]);
@@ -550,9 +702,13 @@ export default function TripListScreen() {
     start: string | null,
     end: string | null,
     desc: string | null,
+    participants: string[],
   ) => {
-    await addTrip({ name, start_date: start, end_date: end, description: desc });
-  }, [addTrip]);
+    const trip = await addTrip({ name, start_date: start, end_date: end, description: desc });
+    for (const participantName of participants) {
+      await addParticipant({ trip_id: trip.id, name: participantName });
+    }
+  }, [addTrip, addParticipant]);
 
   const totalBudget = enriched.reduce((acc, t) => acc + t.total, 0);
   const activeCount = enriched.filter((t) => !t.is_settled).length;
@@ -565,7 +721,10 @@ export default function TripListScreen() {
           <Text style={s.screenTitle}>My Trips</Text>
           <Text style={s.screenSub}>{enriched.length} trips · {activeCount} active</Text>
         </View>
-        <MaterialCommunityIcons name="bell-outline" size={24} color={ds.text.secondary} />
+        <TouchableOpacity style={s.newTripBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.8}>
+          <MaterialCommunityIcons name="plus" size={16} color="#fff" />
+          <Text style={s.newTripBtnText}>New Trip</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Summary card */}
@@ -595,7 +754,7 @@ export default function TripListScreen() {
       ) : (
         <ScrollView
           style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
         >
           {enriched.map((trip) => (
@@ -608,15 +767,6 @@ export default function TripListScreen() {
           ))}
         </ScrollView>
       )}
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={[s.fab, { bottom: insets.bottom + 24 }]}
-        onPress={() => setCreateOpen(true)}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-      </TouchableOpacity>
 
       <CreateTripSheet
         visible={createOpen}

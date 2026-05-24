@@ -281,11 +281,18 @@ export default function AccountsScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader />
+      <BrandHeader
+        right={
+          <TouchableOpacity style={styles.addAccountBtn} onPress={() => navigation.navigate('AddAccount')} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="plus" size={16} color="#fff" />
+            <Text style={styles.addAccountBtnText}>Add Account</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 96 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Net Worth Hero ── */}
@@ -359,15 +366,6 @@ export default function AccountsScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* ── FAB ── */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 80 }]}
-        onPress={() => navigation.navigate('AddAccount')}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-      </TouchableOpacity>
 
       {/* ── Transfer Sheet ── */}
       <TransferSheet
@@ -533,17 +531,20 @@ function makeStyles(ds: DSType) {
     editBtn:    { backgroundColor: ds.tertiary },
     archiveBtn: { backgroundColor: '#6B7280' },
 
-    // FAB
-    fab: {
-      position: 'absolute',
-      right: 20,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: ds.primary,
+    addAccountBtn: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      ...ds.shadow.modal,
+      gap: 5,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: ds.radius.full,
+      backgroundColor: ds.primary,
+    },
+    addAccountBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 14,
+      lineHeight: 20,
+      color: '#fff',
     },
 
     // Transfer sheet

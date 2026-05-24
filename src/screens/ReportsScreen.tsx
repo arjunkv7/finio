@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BrandHeader from '../components/BrandHeader';
+import MonthPickerSheet from '../components/MonthPickerSheet';
+import { hexToRgba } from '../utils/color';
 import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
@@ -69,9 +71,6 @@ function fmtAmt(n: number, sym: string): string {
 function prevMonth(y: number, m: number): [number, number] {
   return m === 1 ? [y - 1, 12] : [y, m - 1];
 }
-function nextMonth(y: number, m: number): [number, number] {
-  return m === 12 ? [y + 1, 1] : [y, m + 1];
-}
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -92,16 +91,16 @@ function makeStyles(ds: DSType) {
       borderBottomColor: ds.border.subtle,
     },
     headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: ds.text.primary },
-    monthNav:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    navBtn: {
-      width: 32, height: 32, borderRadius: 16,
-      backgroundColor: ds.surface.elevated,
-      alignItems: 'center', justifyContent: 'center',
+    monthBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: ds.radius.full,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderWidth: 1, borderColor: hexToRgba(ds.primary, 0.3),
     },
-    navBtnDisabled: { opacity: 0.35 },
-    monthLabel: {
-      fontFamily: 'Inter_600SemiBold', fontSize: 14, color: ds.text.primary,
-      minWidth: 80, textAlign: 'center',
+    monthBtnText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
+      color: ds.primaryLight,
     },
 
     // Content
@@ -319,8 +318,7 @@ export default function ReportsScreen() {
   const [showAnnual, setShowAnnual]       = useState(false);
   const [annualRows, setAnnualRows]       = useState<{ month: number; income: number; expenses: number }[]>([]);
   const [annualLoading, setAnnualLoading] = useState(false);
-
-  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   // ── Load monthly data ──────────────────────────────────────────────────────
 
@@ -334,7 +332,7 @@ export default function ReportsScreen() {
         getMonthlyTrendUpTo(year, month, 6),
       ]);
 
-      setSummary(sum);
+      setSummary({ income: sum.income / 100, expenses: sum.expenses / 100, net: sum.net / 100 });
 
       // Fill all 6 months, zero-padding months with no activity
       const trendMap = new Map(trend.map(t => [`${t.year}-${t.month}`, t]));
@@ -345,8 +343,8 @@ export default function ReportsScreen() {
         const entry = trendMap.get(`${cy}-${cm}`);
         points.push({
           x: 6 - i,
-          income: entry?.income ?? 0,
-          expenses: entry?.expenses ?? 0,
+          income: (entry?.income ?? 0) / 100,
+          expenses: (entry?.expenses ?? 0) / 100,
           label: MONTH_ABBR[cm - 1],
         });
       }
@@ -363,7 +361,7 @@ export default function ReportsScreen() {
             name:   cat?.name  ?? 'Unknown',
             icon:   cat?.icon  ?? 'shape',
             color:  cat?.color ?? ds.text.muted,
-            amount: cs.total,
+            amount: cs.total / 100,
             pct:    totalExp > 0 ? (cs.total / totalExp) * 100 : 0,
           };
         })
@@ -391,7 +389,11 @@ export default function ReportsScreen() {
     setShowAnnual(true);
     setAnnualLoading(true);
     try {
-      setAnnualRows(await getAnnualSummary(year));
+      setAnnualRows((await getAnnualSummary(year)).map(r => ({
+        ...r,
+        income: r.income / 100,
+        expenses: r.expenses / 100,
+      })));
     } catch (err) {
       console.error('[ReportsScreen] annual', err);
     } finally {
@@ -402,7 +404,9 @@ export default function ReportsScreen() {
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const savingsRate = summary.income > 0 ? Math.max(0, (summary.net / summary.income) * 100) : 0;
-  const netWorth    = totalBalance + totalInvested;
+  const balanceRupees  = totalBalance / 100;
+  const investedRupees = totalInvested / 100;
+  const netWorth       = balanceRupees + investedRupees;
   const activeGoals = goals.filter(g => !g.is_completed && !g.is_deleted);
   const hasAnyTrend = trendData.some(d => d.income > 0 || d.expenses > 0);
 
@@ -417,27 +421,15 @@ export default function ReportsScreen() {
     <View style={styles.root}>
       <BrandHeader
         right={subTab === 'overview' ? (
-          <View style={styles.monthNav}>
-            <TouchableOpacity
-              style={styles.navBtn}
-              onPress={() => { const [y, m] = prevMonth(year, month); setYear(y); setMonth(m); }}
-            >
-              <MaterialCommunityIcons name="chevron-left" size={22} color={ds.text.primary} />
-            </TouchableOpacity>
-            <Text style={styles.monthLabel}>{MONTH_ABBR[month - 1]} {year}</Text>
-            <TouchableOpacity
-              style={[styles.navBtn, isCurrentMonth && styles.navBtnDisabled]}
-              onPress={() => {
-                if (!isCurrentMonth) { const [y, m] = nextMonth(year, month); setYear(y); setMonth(m); }
-              }}
-            >
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={22}
-                color={isCurrentMonth ? ds.text.muted : ds.text.primary}
-              />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.monthBtn}
+            onPress={() => setMonthPickerOpen(true)}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
+            <Text style={styles.monthBtnText}>{MONTH_ABBR[month - 1]} {year}</Text>
+            <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
+          </TouchableOpacity>
         ) : undefined}
       />
 
@@ -491,10 +483,12 @@ export default function ReportsScreen() {
             {hasAnyTrend ? (
               <View style={{ height: CHART_H }}>
                 <CartesianChart
-                  data={trendData as any}
-                  xKey="x"
-                  yKeys={['income', 'expenses'] as any}
-                  domainPadding={{ left: 10, right: 10, top: 10 }}
+                  {...({
+                    data: trendData,
+                    xKey: 'x',
+                    yKeys: ['income', 'expenses'],
+                    domainPadding: { left: 10, right: 10, top: 10 },
+                  } as any)}
                 >
                   {({ points, chartBounds }: any) => (
                     <BarGroup
@@ -604,7 +598,7 @@ export default function ReportsScreen() {
                       {Math.round(g.percent)}%
                     </Text>
                     <Text style={styles.goalAmts} numberOfLines={1}>
-                      {fmtAmt(g.contributed, sym)} / {fmtAmt(g.target_amount, sym)}
+                      {fmtAmt(g.contributed / 100, sym)} / {fmtAmt(g.target_amount / 100, sym)}
                     </Text>
                   </View>
                 ))}
@@ -619,14 +613,14 @@ export default function ReportsScreen() {
                 <MaterialCommunityIcons name="wallet" size={16} color={ds.primary} />
               </View>
               <Text style={styles.nwLabel}>Account Balances</Text>
-              <Text style={[styles.nwVal, { color: ds.primary }]}>{fmtAmt(totalBalance, sym)}</Text>
+              <Text style={[styles.nwVal, { color: ds.primary }]}>{fmtAmt(balanceRupees, sym)}</Text>
             </View>
             <View style={styles.nwRow}>
               <View style={[styles.nwIcon, { backgroundColor: `${ds.purple}22` }]}>
                 <MaterialCommunityIcons name="trending-up" size={16} color={ds.purple} />
               </View>
               <Text style={styles.nwLabel}>Investments</Text>
-              <Text style={[styles.nwVal, { color: ds.purple }]}>{fmtAmt(totalInvested, sym)}</Text>
+              <Text style={[styles.nwVal, { color: ds.purple }]}>{fmtAmt(investedRupees, sym)}</Text>
             </View>
             <View style={styles.nwDivider} />
             <View style={styles.nwRow}>
@@ -717,6 +711,15 @@ export default function ReportsScreen() {
           </View>
         </View>
       </Modal>
+
+      <MonthPickerSheet
+        visible={monthPickerOpen}
+        onClose={() => setMonthPickerOpen(false)}
+        year={year}
+        month={month}
+        onChange={(y, m) => { setYear(y); setMonth(m); }}
+        ds={ds}
+      />
     </View>
   );
 }
