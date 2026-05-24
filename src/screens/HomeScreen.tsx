@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -191,11 +191,19 @@ export default function HomeScreen() {
     loadFromDB: loadTransactions, setActiveMonth,
   } = useTransactionsStore();
 
+  const scrollRef = useRef<ScrollView>(null);
+
   const load = useCallback(async () => {
     await Promise.all([loadAccounts(), loadCategories(), loadTransactions()]);
   }, [loadAccounts, loadCategories, loadTransactions]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  React.useEffect(() => {
+    return navigation.addListener('tabPress' as any, () => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  }, [navigation]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
@@ -228,6 +236,7 @@ export default function HomeScreen() {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}

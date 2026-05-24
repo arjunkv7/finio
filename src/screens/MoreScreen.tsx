@@ -32,13 +32,6 @@ interface ServiceItem {
   target: keyof RootStackParamList;
 }
 
-interface SupportItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: IconName;
-}
-
 const GRID_SERVICES: ServiceItem[] = [
   {
     id: 'savings',
@@ -74,20 +67,6 @@ const GRID_SERVICES: ServiceItem[] = [
   },
 ];
 
-const SUPPORT_ITEMS: SupportItem[] = [
-  {
-    id: 'security',
-    title: 'Security Center',
-    subtitle: 'Biometrics, PIN, and device limits',
-    icon: 'shield-check-outline',
-  },
-  {
-    id: 'help',
-    title: 'Help Center',
-    subtitle: '24/7 support and FAQ',
-    icon: 'help-circle-outline',
-  },
-];
 
 function makeStyles(ds: DSType) {
   return StyleSheet.create({
@@ -330,36 +309,6 @@ export default function MoreScreen() {
           ))}
         </View>
 
-        {/* Upgrade to Gold banner */}
-        <View style={styles.upgradeBanner}>
-          <View style={styles.upgradeBg}>
-            <Text style={styles.upgradeTitle}>Upgrade to Gold</Text>
-            <Text style={styles.upgradeDesc}>Get 4.5% APY on all savings.</Text>
-            <TouchableOpacity style={styles.upgradeBtn} activeOpacity={0.8}>
-              <Text style={styles.upgradeBtnText}>Learn More</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Security & Support */}
-        <Text style={styles.sectionLabel}>Security &amp; Support</Text>
-        <View style={styles.supportCard}>
-          {SUPPORT_ITEMS.map((item, idx) => (
-            <React.Fragment key={item.id}>
-              {idx > 0 && <View style={styles.supportDivider} />}
-              <TouchableOpacity style={styles.supportRow} activeOpacity={0.7}>
-                <View style={styles.supportIconWrap}>
-                  <MaterialCommunityIcons name={item.icon} size={20} color={ds.primary} />
-                </View>
-                <View style={styles.supportContent}>
-                  <Text style={styles.supportTitle}>{item.title}</Text>
-                  <Text style={styles.supportSub}>{item.subtitle}</Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
-              </TouchableOpacity>
-            </React.Fragment>
-          ))}
-        </View>
       </ScrollView>
     </View>
   );
