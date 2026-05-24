@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -505,11 +506,8 @@ export default function InvestmentsScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Investments</Text>
-      </View>
+    <View style={s.root}>
+      <BrandHeader />
 
       <SectionList
         sections={sections}

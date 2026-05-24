@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { DSType } from '../constants/colors';
@@ -827,14 +828,8 @@ export default function SavingsScreen() {
   };
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Savings Goals</Text>
-        <View style={s.badgeWrap}>
-          <Text style={s.badge}>{activeGoals.length} active</Text>
-        </View>
-      </View>
+    <View style={s.root}>
+      <BrandHeader />
 
       <ScrollView
         style={s.scroll}

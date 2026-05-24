@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
+import BrandHeader from '../components/BrandHeader';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { DSType } from '../constants/colors';
@@ -229,20 +230,19 @@ export default function HomeScreen() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <Text style={styles.appName}>Finio</Text>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => setPrivacyHidden(h => !h)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name={privacyHidden ? 'eye-off-outline' : 'eye-outline'} size={22} color={ds.text.secondary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="bell-outline" size={22} color={ds.text.secondary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={styles.root}>
+      <BrandHeader
+        right={
+          <>
+            <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} onPress={() => setPrivacyHidden(h => !h)} activeOpacity={0.7}>
+              <MaterialCommunityIcons name={privacyHidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={ds.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="bell-outline" size={20} color={ds.text.secondary} />
+            </TouchableOpacity>
+          </>
+        }
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -452,34 +452,13 @@ function makeStyles(ds: DSType) {
       backgroundColor: ds.surface.screen,
     },
 
-    // Header
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingTop: 10,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: ds.border.subtle,
-    },
-    appName: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 26,
-      lineHeight: 32,
-      letterSpacing: -0.8,
-      color: ds.text.primary,
-    },
-    headerIcons: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
     bellBtn: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: ds.surface.elevated,
+      backgroundColor: ds.surface.card,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
       alignItems: 'center',
       justifyContent: 'center',
     },

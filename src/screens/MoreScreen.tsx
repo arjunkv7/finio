@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { DSType } from '../constants/colors';
@@ -90,43 +90,6 @@ function makeStyles(ds: DSType) {
     screen: {
       flex: 1,
       backgroundColor: ds.surface.screen,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingBottom: 16,
-      paddingTop: 8,
-    },
-    brandRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    brandDot: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: ds.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    brandName: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 22,
-      color: ds.primary,
-      letterSpacing: -0.5,
-    },
-    bellBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: ds.surface.card,
-      borderWidth: 1,
-      borderColor: ds.border.subtle,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     scroll: {
       flex: 1,
@@ -313,23 +276,11 @@ function makeStyles(ds: DSType) {
 export default function MoreScreen() {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <View style={styles.brandDot}>
-            <MaterialCommunityIcons name="leaf" size={18} color="#fff" />
-          </View>
-          <Text style={styles.brandName}>Finio</Text>
-        </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <MaterialCommunityIcons name="bell-outline" size={20} color={ds.text.secondary} />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.screen}>
+      <BrandHeader />
 
       <ScrollView
         style={styles.scroll}

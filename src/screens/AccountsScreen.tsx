@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -279,16 +280,8 @@ export default function AccountsScreen() {
   });
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Wallet & Accounts</Text>
-        {activeAccounts.length > 0 && (
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>{activeAccounts.length} Active</Text>
-          </View>
-        )}
-      </View>
+    <View style={styles.root}>
+      <BrandHeader />
 
       <ScrollView
         style={styles.scroll}

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { DSType } from '../constants/colors';
@@ -472,20 +473,20 @@ export default function HistoryScreen() {
   // ── Screen ────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.title}>History</Text>
-        <TouchableOpacity
-          style={styles.monthBtn}
-          onPress={() => setMonthPickerOpen(true)}
-          activeOpacity={0.75}
-        >
-          <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
-          <Text style={styles.monthBtnText}>{MONTH_NAMES[month - 1]} {year}</Text>
-          <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.root}>
+      <BrandHeader
+        right={
+          <TouchableOpacity
+            style={styles.monthBtn}
+            onPress={() => setMonthPickerOpen(true)}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
+            <Text style={styles.monthBtnText}>{MONTH_NAMES[month - 1]} {year}</Text>
+            <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
+          </TouchableOpacity>
+        }
+      />
 
       {/* Main list */}
       <FlatList<ListItem>

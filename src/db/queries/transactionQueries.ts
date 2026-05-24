@@ -18,9 +18,9 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
   await db.runAsync(
     `INSERT INTO transactions
        (id, type, amount, account_id, to_account_id, category_id, description, notes,
-        transaction_date, receipt_photo_uri, is_recurring, recurrence_rule, trip_id,
+        transaction_date, transaction_time, receipt_photo_uri, is_recurring, recurrence_rule, trip_id,
         is_deleted, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     [
       id,
       input.type,
@@ -31,6 +31,7 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
       input.description ?? null,
       input.notes ?? null,
       input.transaction_date,
+      input.transaction_time ?? null,
       input.receipt_photo_uri ?? null,
       input.is_recurring ?? 0,
       input.recurrence_rule ?? null,

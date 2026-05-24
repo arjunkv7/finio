@@ -96,6 +96,7 @@ export interface Transaction {
   description: string | null;
   notes: string | null;
   transaction_date: string;
+  transaction_time: string | null;
   receipt_photo_uri: string | null;
   is_recurring: number;
   recurrence_rule: RecurrenceRule | null;
@@ -114,6 +115,7 @@ export interface CreateTransactionInput {
   description?: string | null;
   notes?: string | null;
   transaction_date: string;
+  transaction_time?: string | null;
   receipt_photo_uri?: string | null;
   is_recurring?: number;
   recurrence_rule?: RecurrenceRule | null;

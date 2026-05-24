@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -60,10 +59,6 @@ function toISODate(date: Date): string {
 }
 
 // ── Styles factory ────────────────────────────────────────────────────────────
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const CELL_COLS = 4;
-const CELL_SIZE = Math.floor((SCREEN_W - 32 - (CELL_COLS - 1) * 8) / CELL_COLS);
 
 function makeStyles(ds: DSType) {
   return StyleSheet.create({
@@ -146,7 +141,7 @@ function makeStyles(ds: DSType) {
       lineHeight: 64,
       letterSpacing: -2.24,
       minWidth: 80,
-      maxWidth: SCREEN_W - 80,
+      maxWidth: '85%',
       padding: 0,
       includeFontPadding: false,
     },
@@ -189,50 +184,34 @@ function makeStyles(ds: DSType) {
       paddingVertical: 8,
     },
 
-    // Category grid
-    categoryGrid: {
+    // Category sheet list
+    categorySheetBody: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 6 },
+    categoryRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    categoryCell: {
-      width: CELL_SIZE,
-      height: CELL_SIZE,
-      borderRadius: ds.radius.lg,
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
+      gap: 12,
+      padding: 12,
+      borderRadius: ds.radius.lg,
       backgroundColor: ds.surface.elevated,
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: ds.border.subtle,
     },
-    categoryIcon: {
+    categoryRowSelected: {
+      borderColor: ds.primary,
+      backgroundColor: hexToRgba(ds.primary, 0.08),
+    },
+    categoryRowIcon: {
       width: 40,
       height: 40,
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    categoryLabel: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 11,
-      lineHeight: 14,
-      color: ds.text.muted,
-      textAlign: 'center',
-      paddingHorizontal: 4,
-    },
-    showMoreBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 4,
-      paddingVertical: 8,
-    },
-    showMoreText: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 13,
-      lineHeight: 18,
-      color: ds.text.muted,
+    categoryRowName: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
     },
 
     // Details card
@@ -328,8 +307,8 @@ function makeStyles(ds: DSType) {
     },
 
     // Date sheet
-    dateSheetBody: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-    dateChips: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    dateSheetBody: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+    dateChips: { flexDirection: 'row', gap: 10, marginBottom: 12 },
     dateChip: {
       flex: 1,
       height: 44,
@@ -355,21 +334,20 @@ function makeStyles(ds: DSType) {
       borderRadius: ds.radius.lg,
       borderWidth: 1,
       borderColor: ds.border.subtle,
-      marginBottom: 20,
+      marginBottom: 8,
       overflow: 'hidden',
     },
     dayNavBtn: {
       width: 48,
-      height: 52,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
     },
     dayNavLabel: {
-      flex: 1,
       textAlign: 'center',
       fontFamily: 'Inter_600SemiBold',
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: 13,
+      lineHeight: 18,
       color: ds.text.primary,
     },
     dateConfirmBtn: {
@@ -378,12 +356,48 @@ function makeStyles(ds: DSType) {
       backgroundColor: ds.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      marginTop: 8,
     },
     dateConfirmText: {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 16,
       lineHeight: 22,
       color: '#fff',
+    },
+    // Calendar
+    calendarContainer: { marginBottom: 4 },
+    calDowRow: { flexDirection: 'row', marginBottom: 2 },
+    calDowCell: { flex: 1, alignItems: 'center', paddingVertical: 6 },
+    calDowText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 11,
+      color: ds.text.muted,
+    },
+    calRow: { flexDirection: 'row', marginBottom: 2 },
+    calCell: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+    calDayCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    calDayText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 14,
+      color: ds.text.primary,
+    },
+    calDaySelectedText: { color: '#fff', fontFamily: 'Inter_700Bold' },
+    calDayDisabled: { color: ds.text.muted, opacity: 0.4 },
+    // Time wheel picker
+    timeDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: ds.border.subtle,
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    timePickerWrap: {
+      alignItems: 'center',
     },
 
     // Account sheet
@@ -453,130 +467,404 @@ function makeStyles(ds: DSType) {
   });
 }
 
-// ── Category grid cell ────────────────────────────────────────────────────────
+// ── Category picker sheet ─────────────────────────────────────────────────────
 
-interface CategoryCellProps {
-  category: Category;
-  selected: boolean;
-  onPress: () => void;
+interface CategorySheetProps {
+  visible: boolean;
+  onClose: () => void;
+  categories: Category[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }
 
-function CategoryCell({ category, selected, onPress }: CategoryCellProps) {
+function CategorySheet({ visible, onClose, categories, selectedId, onSelect }: CategorySheetProps) {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.categoryCell,
-        selected && { borderColor: category.color, backgroundColor: hexToRgba(category.color, 0.12) },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View
-        style={[
-          styles.categoryIcon,
-          {
-            backgroundColor: selected
-              ? hexToRgba(category.color, 0.25)
-              : hexToRgba(category.color, 0.1),
-          },
-        ]}
-      >
-        <MaterialCommunityIcons
-          name={category.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
-          size={22}
-          color={selected ? category.color : ds.text.muted}
-        />
+    <BottomSheet visible={visible} onClose={onClose} title="Select Category">
+      <View style={styles.categorySheetBody}>
+        {categories.map((cat) => {
+          const isSelected = cat.id === selectedId;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.categoryRow, isSelected && styles.categoryRowSelected]}
+              onPress={() => { onSelect(cat.id); onClose(); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.categoryRowIcon, { backgroundColor: hexToRgba(cat.color, isSelected ? 0.25 : 0.12) }]}>
+                <MaterialCommunityIcons
+                  name={cat.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
+                  size={20}
+                  color={cat.color}
+                />
+              </View>
+              <Text style={[styles.categoryRowName, isSelected && { color: cat.color }]}>{cat.name}</Text>
+              {isSelected && (
+                <MaterialCommunityIcons name="check-circle" size={20} color={ds.primary} />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
-      <Text
-        style={[styles.categoryLabel, selected && { color: category.color }]}
-        numberOfLines={1}
-      >
-        {category.name}
-      </Text>
-    </TouchableOpacity>
+    </BottomSheet>
   );
 }
 
-// ── Date picker sheet ─────────────────────────────────────────────────────────
+// ── Date & time picker sheet ──────────────────────────────────────────────────
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW_LABELS = ['M','T','W','T','F','S','S'];
+// ── Calendar helpers ──────────────────────────────────────────────────────────
+
+function generateCalDays(year: number, month: number): (Date | null)[] {
+  const firstDay = new Date(year, month, 1);
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const startOffset = (firstDay.getDay() + 6) % 7; // Mon=0
+  const days: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) days.push(null);
+  for (let d = 1; d <= lastDate; d++) days.push(new Date(year, month, d));
+  return days;
+}
+
+// ── Time wheel picker ─────────────────────────────────────────────────────────
+
+const WHEEL_ITEM_H = 44;
+const WHEEL_VISIBLE = 3;
+const WHEEL_PAD = Math.floor(WHEEL_VISIBLE / 2);
+
+interface WheelPickerProps {
+  items: string[];
+  initialIndex: number;
+  onSelect: (idx: number) => void;
+  width: number;
+  accentColor: string;
+}
+
+function WheelPicker({ items, initialIndex, onSelect, width, accentColor }: WheelPickerProps) {
+  const ds = useDS();
+  const scrollRef = useRef<ScrollView>(null);
+  const [displayIdx, setDisplayIdx] = useState(initialIndex);
+  const didMount = useRef(false);
+
+  useEffect(() => {
+    const offset = initialIndex * WHEEL_ITEM_H;
+    setDisplayIdx(initialIndex);
+    if (!didMount.current) {
+      didMount.current = true;
+      const t = setTimeout(() => scrollRef.current?.scrollTo({ y: offset, animated: false }), 80);
+      return () => clearTimeout(t);
+    }
+    scrollRef.current?.scrollTo({ y: offset, animated: false });
+  }, [initialIndex]);
+
+  return (
+    <View style={{ width, height: WHEEL_ITEM_H * WHEEL_VISIBLE, overflow: 'hidden' }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: WHEEL_ITEM_H * WHEEL_PAD,
+          left: 2,
+          right: 2,
+          height: WHEEL_ITEM_H,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderColor: accentColor,
+        }}
+      />
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_H}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingVertical: WHEEL_ITEM_H * WHEEL_PAD }}
+        onMomentumScrollEnd={(e) => {
+          const rawIdx = Math.round(e.nativeEvent.contentOffset.y / WHEEL_ITEM_H);
+          const idx = Math.max(0, Math.min(rawIdx, items.length - 1));
+          setDisplayIdx(idx);
+          onSelect(idx);
+        }}
+      >
+        {items.map((item, i) => {
+          const isSel = i === displayIdx;
+          return (
+            <View key={i} style={{ height: WHEEL_ITEM_H, alignItems: 'center', justifyContent: 'center', width }}>
+              <Text style={{
+                fontFamily: isSel ? 'Inter_700Bold' : 'Inter_400Regular',
+                fontSize: isSel ? 20 : 16,
+                color: isSel ? accentColor : ds.text.muted,
+              }}>
+                {item}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+interface TimeWheelPickerProps {
+  date: Date;
+  onChange: (d: Date) => void;
+  accentColor?: string;
+}
+
+function TimeWheelPicker({ date, onChange, accentColor }: TimeWheelPickerProps) {
+  const ds = useDS();
+  const color = accentColor ?? ds.primary;
+
+  const hours12 = useMemo(() => Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')), []);
+  const minutes60 = useMemo(() => Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')), []);
+  const ampmItems = ['AM', 'PM'];
+
+  const h24 = date.getHours();
+  const hourIdx = h24 % 12 === 0 ? 11 : (h24 % 12) - 1;
+  const minIdx = date.getMinutes();
+  const ampmIdx = h24 >= 12 ? 1 : 0;
+
+  const applyChange = (hIdx: number, mIdx: number, apIdx: number) => {
+    const nd = new Date(date);
+    let h = hIdx + 1;
+    if (apIdx === 1) { h = h === 12 ? 12 : h + 12; }
+    else { h = h === 12 ? 0 : h; }
+    nd.setHours(h, mIdx, 0, 0);
+    onChange(nd);
+  };
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <WheelPicker items={hours12} initialIndex={hourIdx} onSelect={(i) => applyChange(i, minIdx, ampmIdx)} width={64} accentColor={color} />
+      <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 22, color: ds.text.muted, marginHorizontal: 4 }}>:</Text>
+      <WheelPicker items={minutes60} initialIndex={minIdx} onSelect={(i) => applyChange(hourIdx, i, ampmIdx)} width={64} accentColor={color} />
+      <View style={{ width: 12 }} />
+      <WheelPicker items={ampmItems} initialIndex={ampmIdx} onSelect={(i) => applyChange(hourIdx, minIdx, i)} width={56} accentColor={color} />
+    </View>
+  );
+}
 
 interface DateSheetProps {
   visible: boolean;
   onClose: () => void;
   date: Date;
   onChange: (d: Date) => void;
+  accentColor?: string;
 }
 
-function DateSheet({ visible, onClose, date, onChange }: DateSheetProps) {
+function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetProps) {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
-  const [local, setLocal] = useState(date);
+  const color = accentColor ?? ds.primary;
 
-  useEffect(() => { if (visible) setLocal(date); }, [visible, date]);
+  const [local, setLocal] = useState(() => new Date(date));
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calYear, setCalYear] = useState(date.getFullYear());
+  const [calMonth, setCalMonth] = useState(date.getMonth());
 
-  const shift = (days: number) => {
+  useEffect(() => {
+    if (visible) {
+      const d = new Date(date);
+      setLocal(d);
+      setCalYear(d.getFullYear());
+      setCalMonth(d.getMonth());
+      setShowCalendar(false);
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const today = useMemo(() => {
+    const t = new Date();
+    t.setHours(23, 59, 59, 999);
+    return t;
+  }, []);
+
+  const shiftDay = (delta: number) => {
     const d = new Date(local);
-    d.setDate(d.getDate() + days);
-    setLocal(d);
+    d.setDate(d.getDate() + delta);
+    if (d <= today) setLocal(d);
   };
 
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  const shiftMonth = (delta: number) => {
+    let m = calMonth + delta;
+    let y = calYear;
+    if (m < 0) { m = 11; y--; }
+    if (m > 11) { m = 0; y++; }
+    const firstOfNextMonth = new Date(y, m + 1, 1);
+    if (firstOfNextMonth > new Date()) {
+      // only allow up to the current month
+      const now = new Date();
+      if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth())) return;
+    }
+    setCalYear(y);
+    setCalMonth(m);
+  };
 
-  const confirm = () => { onChange(local); onClose(); };
+  const selectCalDay = (d: Date) => {
+    const nd = new Date(local);
+    nd.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+    setLocal(nd);
+    setShowCalendar(false);
+  };
+
+  const calDays = useMemo(() => generateCalDays(calYear, calMonth), [calYear, calMonth]);
+  const calRows = useMemo(() => {
+    const rows: (Date | null)[][] = [];
+    for (let i = 0; i < calDays.length; i += 7) {
+      const row = calDays.slice(i, i + 7);
+      while (row.length < 7) row.push(null);
+      rows.push(row);
+    }
+    return rows;
+  }, [calDays]);
+
+  const todayMidnight = useMemo(() => { const t = new Date(); t.setHours(0,0,0,0); return t; }, []);
+  const yesterday = useMemo(() => { const d = new Date(todayMidnight); d.setDate(d.getDate() - 1); return d; }, [todayMidnight]);
+
+  const canGoNextMonth = useMemo(() => {
+    const now = new Date();
+    return calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
+  }, [calYear, calMonth]);
+
+  const isAtToday = isSameDay(local, todayMidnight);
+
+  const confirm = () => { onChange(new Date(local)); onClose(); };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Select Date">
-      <View style={styles.dateSheetBody}>
+    <BottomSheet visible={visible} onClose={onClose} title="Date & Time">
+      <ScrollView
+        style={{ maxHeight: 520 }}
+        contentContainerStyle={styles.dateSheetBody}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Quick chips */}
         <View style={styles.dateChips}>
-          {[
-            { label: 'Yesterday', d: yesterday },
-            { label: 'Today', d: today },
-          ].map(({ label, d }) => {
+          {[{ label: 'Yesterday', d: yesterday }, { label: 'Today', d: todayMidnight }].map(({ label, d }) => {
             const active = isSameDay(local, d);
             return (
               <TouchableOpacity
                 key={label}
                 style={[styles.dateChip, active && styles.dateChipActive]}
-                onPress={() => setLocal(new Date(d))}
+                onPress={() => {
+                  const nd = new Date(local);
+                  nd.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                  setLocal(nd);
+                  setShowCalendar(false);
+                }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.dateChipText, active && styles.dateChipTextActive]}>{label}</Text>
+                <Text style={[styles.dateChipText, active && { color: color }]}>{label}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Day navigator */}
+        {/* Date nav row — chevrons navigate day or month; centre taps to toggle calendar */}
         <View style={styles.dayNav}>
-          <TouchableOpacity style={styles.dayNavBtn} onPress={() => shift(-1)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="chevron-left" size={24} color={ds.text.secondary} />
-          </TouchableOpacity>
-          <Text style={styles.dayNavLabel}>
-            {local.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </Text>
           <TouchableOpacity
             style={styles.dayNavBtn}
-            onPress={() => shift(1)}
-            disabled={isSameDay(local, today)}
+            onPress={showCalendar ? () => shiftMonth(-1) : () => shiftDay(-1)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="chevron-left" size={24} color={ds.text.secondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 12 }}
+            onPress={() => {
+              if (!showCalendar) {
+                setCalYear(local.getFullYear());
+                setCalMonth(local.getMonth());
+              }
+              setShowCalendar(v => !v);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.dayNavLabel}>
+              {showCalendar
+                ? `${MONTH_NAMES[calMonth]} ${calYear}`
+                : local.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+            </Text>
+            <MaterialCommunityIcons
+              name={showCalendar ? 'chevron-up' : 'calendar-month-outline'}
+              size={14}
+              color={ds.text.muted}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dayNavBtn}
+            onPress={showCalendar ? () => shiftMonth(1) : () => shiftDay(1)}
+            disabled={showCalendar ? !canGoNextMonth : isAtToday}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons
               name="chevron-right"
               size={24}
-              color={isSameDay(local, today) ? ds.text.muted : ds.text.secondary}
+              color={(showCalendar ? !canGoNextMonth : isAtToday) ? ds.text.muted : ds.text.secondary}
             />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.dateConfirmBtn} onPress={confirm} activeOpacity={0.85}>
+        {/* Calendar grid */}
+        {showCalendar && (
+          <View style={styles.calendarContainer}>
+            <View style={styles.calDowRow}>
+              {DOW_LABELS.map((d, i) => (
+                <View key={i} style={styles.calDowCell}>
+                  <Text style={styles.calDowText}>{d}</Text>
+                </View>
+              ))}
+            </View>
+            {calRows.map((row, ri) => (
+              <View key={ri} style={styles.calRow}>
+                {row.map((d, ci) => {
+                  if (!d) return <View key={ci} style={styles.calCell} />;
+                  const isSel = isSameDay(d, local);
+                  const isTod = isSameDay(d, todayMidnight);
+                  const isFut = d > todayMidnight;
+                  return (
+                    <TouchableOpacity
+                      key={ci}
+                      style={styles.calCell}
+                      onPress={() => selectCalDay(d)}
+                      disabled={isFut}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.calDayCircle,
+                        isSel && { backgroundColor: color },
+                        isTod && !isSel && { borderWidth: 1.5, borderColor: color },
+                      ]}>
+                        <Text style={[
+                          styles.calDayText,
+                          isSel && styles.calDaySelectedText,
+                          isFut && styles.calDayDisabled,
+                          isTod && !isSel && { color },
+                        ]}>
+                          {d.getDate()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Time picker */}
+        <View style={styles.timeDivider} />
+        <View style={styles.timePickerWrap}>
+          <TimeWheelPicker date={local} onChange={setLocal} accentColor={color} />
+        </View>
+
+        <TouchableOpacity style={[styles.dateConfirmBtn, { backgroundColor: color }]} onPress={confirm} activeOpacity={0.85}>
           <Text style={styles.dateConfirmText}>Confirm</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </BottomSheet>
   );
 }
@@ -682,7 +970,6 @@ function SuccessOverlay({ visible }: { visible: boolean }) {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-const CATEGORIES_COLLAPSED = 8;
 
 export default function AddTransactionScreen() {
   const navigation = useNavigation<Nav>();
@@ -713,14 +1000,19 @@ export default function AddTransactionScreen() {
   const [date, setDate] = useState<Date>(() => {
     if (editTx?.transaction_date) {
       const [y, m, d] = editTx.transaction_date.split('-').map(Number);
-      return new Date(y, m - 1, d);
+      const dt = new Date(y, m - 1, d);
+      if (editTx.transaction_time) {
+        const [h, min] = editTx.transaction_time.split(':').map(Number);
+        dt.setHours(h, min, 0, 0);
+      }
+      return dt;
     }
     return new Date();
   });
   const [description, setDescription] = useState(() => editTx?.description ?? '');
   const [notes, setNotes]             = useState(() => editTx?.notes ?? '');
 
-  const [showAllCats, setShowAllCats] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [dateSheetOpen, setDateSheetOpen]       = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -751,7 +1043,6 @@ export default function AddTransactionScreen() {
   const handleTypeSwitch = useCallback((t: 'income' | 'expense') => {
     setTxType(t);
     setCategoryId(null);
-    setShowAllCats(false);
     setCategoryError('');
   }, []);
 
@@ -760,10 +1051,9 @@ export default function AddTransactionScreen() {
   const typeColor = txType === 'income' ? ds.primary : ds.secondary;
   const typeColorLight = txType === 'income' ? ds.primaryLight : ds.secondaryLight;
   const categories = txType === 'income' ? incomeCategories : expenseCategories;
-  const visibleCats = showAllCats ? categories : categories.slice(0, CATEGORIES_COLLAPSED);
-  const hiddenCount = categories.length - CATEGORIES_COLLAPSED;
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
+  const selectedCategory = categories.find((c) => c.id === categoryId);
 
   // ── Validation & save ─────────────────────────────────────────────────────
 
@@ -802,6 +1092,7 @@ export default function AddTransactionScreen() {
         account_id: accountId!,
         category_id: categoryId,
         transaction_date: toISODate(date),
+        transaction_time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
         description: description.trim() || null,
         notes: notes.trim() || null,
       };
@@ -909,48 +1200,31 @@ export default function AddTransactionScreen() {
             <Text style={[styles.errorText, { textAlign: 'center' }]}>{amountError}</Text>
           ) : null}
 
-          {/* ── Category ── */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Category</Text>
-              {categoryError ? <Text style={styles.errorText}>{categoryError}</Text> : null}
-            </View>
-            {categories.length === 0 ? (
-              <Text style={styles.emptyHint}>No categories found.</Text>
-            ) : (
-              <>
-                <View style={styles.categoryGrid}>
-                  {visibleCats.map((cat) => (
-                    <CategoryCell
-                      key={cat.id}
-                      category={cat}
-                      selected={categoryId === cat.id}
-                      onPress={() => { setCategoryId(cat.id); setCategoryError(''); }}
-                    />
-                  ))}
-                </View>
-                {hiddenCount > 0 && (
-                  <TouchableOpacity
-                    style={styles.showMoreBtn}
-                    onPress={() => setShowAllCats((v) => !v)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.showMoreText}>
-                      {showAllCats ? 'Show less' : `Show ${hiddenCount} more`}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name={showAllCats ? 'chevron-up' : 'chevron-down'}
-                      size={16}
-                      color={ds.text.muted}
-                    />
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
-
           {/* ── Details rows ── */}
           <View style={styles.detailsCard}>
+            {/* Category */}
+            <TouchableOpacity
+              style={styles.detailRow}
+              onPress={() => setCategorySheetOpen(true)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.detailIcon, { backgroundColor: selectedCategory ? hexToRgba(selectedCategory.color, 0.15) : hexToRgba(ds.purple, 0.12) }]}>
+                <MaterialCommunityIcons
+                  name={selectedCategory ? (selectedCategory.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']) : 'shape-outline'}
+                  size={18}
+                  color={selectedCategory ? selectedCategory.color : ds.purple}
+                />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Category{categoryError ? <Text style={styles.errorText}>  {categoryError}</Text> : null}</Text>
+                <Text style={[styles.detailValue, !selectedCategory && styles.detailPlaceholder]}>
+                  {selectedCategory?.name ?? 'Select category'}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
             {/* Account */}
             <TouchableOpacity
               style={styles.detailRow}
@@ -982,10 +1256,11 @@ export default function AddTransactionScreen() {
                 <MaterialCommunityIcons name="calendar-outline" size={18} color={ds.tertiary} />
               </View>
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Date</Text>
+                <Text style={styles.detailLabel}>Date & Time</Text>
                 <Text style={styles.detailValue}>
                   {formatDateLabel(date)}
                   {!isSameDay(date, new Date()) && ` · ${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                  {`  ${String(date.getHours() % 12 || 12).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')} ${date.getHours() >= 12 ? 'PM' : 'AM'}`}
                 </Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
@@ -1061,6 +1336,14 @@ export default function AddTransactionScreen() {
         onClose={() => setDateSheetOpen(false)}
         date={date}
         onChange={setDate}
+        accentColor={typeColor}
+      />
+      <CategorySheet
+        visible={categorySheetOpen}
+        onClose={() => setCategorySheetOpen(false)}
+        categories={categories}
+        selectedId={categoryId}
+        onSelect={(id) => { setCategoryId(id); setCategoryError(''); }}
       />
 
       {/* ── Success overlay ── */}

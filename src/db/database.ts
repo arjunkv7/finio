@@ -2,22 +2,26 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
-let _db: SQLite.SQLiteDatabase | null = null;
+let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!_db) {
-    const db = await SQLite.openDatabaseAsync(DB_NAME);
-    try {
-      await bootstrap(db);
-    } catch (err) {
-      console.error('[Finio] bootstrap error:', err);
-      // Still assign so subsequent calls don't try again on every render
-    }
-    _db = db;
+export function getDb(): Promise<SQLite.SQLiteDatabase> {
+  if (!_dbPromise) {
+    _dbPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      try {
+        await bootstrap(db);
+      } catch (err) {
+        console.error('[Finio] bootstrap error:', err);
+        // Re-throw so callers know the DB is not ready; reset so next call retries
+        _dbPromise = null;
+        throw err;
+      }
+      return db;
+    })();
   }
-  return _db;
+  return _dbPromise;
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -71,6 +75,10 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
       );
     `);
     await setSchemaVersion(db, 2);
+  }
+  if (from < 3) {
+    await db.execAsync(`ALTER TABLE transactions ADD COLUMN transaction_time TEXT;`);
+    await setSchemaVersion(db, 3);
   }
 }
 

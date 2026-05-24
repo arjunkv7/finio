@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BrandHeader from '../components/BrandHeader';
 import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
@@ -413,12 +414,9 @@ export default function ReportsScreen() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Reports</Text>
-        {subTab === 'overview' && (
+    <View style={styles.root}>
+      <BrandHeader
+        right={subTab === 'overview' ? (
           <View style={styles.monthNav}>
             <TouchableOpacity
               style={styles.navBtn}
@@ -440,8 +438,8 @@ export default function ReportsScreen() {
               />
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        ) : undefined}
+      />
 
       {/* Sub-tab pills */}
       <View style={styles.subTabBar}>
