@@ -19,7 +19,7 @@ import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { RecurringTransaction, RootStackParamList } from '../types';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 
 type Nav = StackNavigationProp<RootStackParamList>;
 
@@ -55,18 +55,6 @@ function makeStyles(ds: DSType) {
     screen: { flex: 1, backgroundColor: ds.surface.screen },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 6,
-    },
-    title: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 26,
-      color: ds.text.primary,
-      letterSpacing: -0.4,
-    },
     subtitle: {
       fontFamily: 'Inter_400Regular',
       fontSize: 14,
@@ -107,7 +95,6 @@ function makeStyles(ds: DSType) {
       paddingVertical: 10,
       borderRadius: ds.radius.full,
       backgroundColor: ds.primary,
-      marginTop: 4,
     },
     addBtnText: {
       fontFamily: 'Inter_600SemiBold',
@@ -333,11 +320,10 @@ export default function RecurringScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader onBack={() => navigation.goBack()} />
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Recurring</Text>
+      <PageHeader
+        onBack={() => navigation.goBack()}
+        title="Recurring"
+        right={
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => navigation.navigate('AddTransaction')}
@@ -346,7 +332,10 @@ export default function RecurringScreen() {
             <MaterialCommunityIcons name="plus" size={16} color="#fff" />
             <Text style={styles.addBtnText}>New</Text>
           </TouchableOpacity>
-        </View>
+        }
+      />
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>
           Transactions that auto-create on a schedule.
         </Text>

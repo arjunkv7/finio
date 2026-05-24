@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -281,7 +281,8 @@ export default function AccountsScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader
+      <PageHeader
+        title="Accounts"
         onBack={() => navigation.goBack()}
         right={
           <TouchableOpacity style={styles.addAccountBtn} onPress={() => navigation.navigate('AddAccount')} activeOpacity={0.8}>

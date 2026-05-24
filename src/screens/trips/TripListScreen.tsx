@@ -23,6 +23,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { getTripParticipants, getTripTotal } from '../../db/queries/tripQueries';
 import BottomSheet from '../../components/BottomSheet';
 import DatePickerSheet from '../../components/DatePickerSheet';
+import PageHeader from '../../components/PageHeader';
 import { Trip } from '../../types/db';
 import { TripsStackParamList } from '../../types';
 
@@ -549,37 +550,6 @@ function makeStyles(ds: DSType) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: ds.surface.screen },
 
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 16,
-    },
-    backBtn: {
-      padding: 4,
-      marginLeft: -4,
-      marginRight: 4,
-    },
-    headerTitles: {
-      flex: 1,
-    },
-    screenTitle: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 24,
-      lineHeight: 32,
-      letterSpacing: -0.48,
-      color: ds.text.primary,
-    },
-    screenSub: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 13,
-      lineHeight: 18,
-      color: ds.text.muted,
-      marginTop: 2,
-    },
-
     summaryCard: {
       marginHorizontal: 20,
       marginBottom: 20,
@@ -722,21 +692,18 @@ export default function TripListScreen() {
   const activeCount = enriched.filter((t) => !t.is_settled).length;
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chevron-left" size={28} color={ds.text.primary} />
-        </TouchableOpacity>
-        <View style={s.headerTitles}>
-          <Text style={s.screenTitle}>My Trips</Text>
-          <Text style={s.screenSub}>{enriched.length} trips · {activeCount} active</Text>
-        </View>
-        <TouchableOpacity style={s.newTripBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.8}>
-          <MaterialCommunityIcons name="plus" size={16} color="#fff" />
-          <Text style={s.newTripBtnText}>New Trip</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={s.root}>
+      <PageHeader
+        title="My Trips"
+        subtitle={`${enriched.length} trips · ${activeCount} active`}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity style={s.newTripBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="plus" size={16} color="#fff" />
+            <Text style={s.newTripBtnText}>New Trip</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {/* Summary card */}
       <View style={s.summaryCard}>

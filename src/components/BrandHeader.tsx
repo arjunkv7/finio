@@ -67,8 +67,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    height: 40,
   },
   backBtn: {
+    height: 40,
+    justifyContent: 'center',
     padding: 4,
     marginLeft: -4,
   },

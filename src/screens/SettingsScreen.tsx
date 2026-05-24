@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
@@ -854,7 +854,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <BrandHeader onBack={() => navigation.goBack()} />
+      <PageHeader onBack={() => navigation.goBack()} title="Settings" />
 
       <ScrollView
         style={styles.scroll}

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { DSType } from '../constants/colors';
@@ -830,7 +830,7 @@ export default function SavingsScreen() {
 
   return (
     <View style={s.root}>
-      <BrandHeader onBack={() => navigation.goBack()} />
+      <PageHeader onBack={() => navigation.goBack()} title="Savings Goals" />
 
       <ScrollView
         style={s.scroll}

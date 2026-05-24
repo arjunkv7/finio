@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
@@ -508,7 +508,7 @@ export default function InvestmentsScreen() {
 
   return (
     <View style={s.root}>
-      <BrandHeader onBack={() => navigation.goBack()} />
+      <PageHeader onBack={() => navigation.goBack()} title="Investments" />
 
       <SectionList
         sections={sections}
