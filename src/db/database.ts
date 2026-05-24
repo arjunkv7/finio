@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -79,6 +79,28 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
   if (from < 3) {
     await db.execAsync(`ALTER TABLE transactions ADD COLUMN transaction_time TEXT;`);
     await setSchemaVersion(db, 3);
+  }
+  if (from < 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+        id            TEXT    PRIMARY KEY,
+        type          TEXT    NOT NULL,
+        amount        INTEGER NOT NULL,
+        account_id    TEXT    NOT NULL REFERENCES accounts(id),
+        category_id   TEXT             REFERENCES categories(id),
+        description   TEXT,
+        notes         TEXT,
+        frequency     TEXT    NOT NULL,
+        next_run_date TEXT    NOT NULL,
+        time_of_day   TEXT    NOT NULL DEFAULT '09:00',
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT    NOT NULL,
+        updated_at    TEXT    NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_recurring_next_run_date
+        ON recurring_transactions(next_run_date, is_active);
+    `);
+    await setSchemaVersion(db, 4);
   }
 }
 
@@ -238,6 +260,22 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       is_read    INTEGER NOT NULL DEFAULT 0,
       created_at TEXT    NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS recurring_transactions (
+      id            TEXT    PRIMARY KEY,
+      type          TEXT    NOT NULL,
+      amount        INTEGER NOT NULL,
+      account_id    TEXT    NOT NULL REFERENCES accounts(id),
+      category_id   TEXT             REFERENCES categories(id),
+      description   TEXT,
+      notes         TEXT,
+      frequency     TEXT    NOT NULL,
+      next_run_date TEXT    NOT NULL,
+      time_of_day   TEXT    NOT NULL DEFAULT '09:00',
+      is_active     INTEGER NOT NULL DEFAULT 1,
+      created_at    TEXT    NOT NULL,
+      updated_at    TEXT    NOT NULL
+    );
   `);
 }
 
@@ -268,6 +306,9 @@ async function createIndexes(db: SQLite.SQLiteDatabase): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_budgets_category_id
       ON budgets(category_id);
+
+    CREATE INDEX IF NOT EXISTS idx_recurring_next_run_date
+      ON recurring_transactions(next_run_date, is_active);
   `);
 }
 
@@ -381,6 +422,7 @@ export async function clearAllUserData(): Promise<void> {
     await db.runAsync('DELETE FROM trip_expense_splits');
     await db.runAsync('DELETE FROM budgets');
     await db.runAsync('DELETE FROM notifications');
+    await db.runAsync('DELETE FROM recurring_transactions');
     await db.runAsync(
       `UPDATE settings SET pin_enabled = 0, pin_hash = NULL, last_backup_at = NULL WHERE id = 1`
     );

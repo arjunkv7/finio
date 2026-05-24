@@ -30,4 +30,5 @@ export type RootStackParamList = {
   Savings: undefined;
   Investments: undefined;
   Settings: undefined;
+  Recurring: undefined;
 };

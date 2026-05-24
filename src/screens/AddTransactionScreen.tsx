@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,8 +22,9 @@ import { hexToRgba } from '../utils/color';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
+import { useRecurringStore } from '../store/recurringStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { Category, RootStackParamList } from '../types';
+import { Category, RecurrenceFrequency, RootStackParamList } from '../types';
 import BottomSheet from '../components/BottomSheet';
 
 type Nav = StackNavigationProp<RootStackParamList, 'AddTransaction'>;
@@ -436,6 +438,59 @@ function makeStyles(ds: DSType) {
       color: ds.text.muted,
     },
 
+    // Recurring
+    recurringRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    freqChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: ds.radius.full,
+      borderWidth: 1,
+    },
+    freqChipText: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    // Frequency sheet
+    freqSheetBody: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 8 },
+    freqOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+      borderRadius: ds.radius.lg,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+    },
+    freqOptionSelected: {
+      borderColor: ds.primary,
+      backgroundColor: hexToRgba(ds.primary, 0.08),
+    },
+    freqOptionLabel: {
+      flex: 1,
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      lineHeight: 20,
+      color: ds.text.primary,
+    },
+    freqOptionSub: {
+      fontFamily: 'Inter_400Regular',
+      fontSize: 12,
+      lineHeight: 16,
+      color: ds.text.muted,
+      marginTop: 2,
+    },
+
     // Success overlay
     successOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -652,9 +707,10 @@ interface DateSheetProps {
   date: Date;
   onChange: (d: Date) => void;
   accentColor?: string;
+  allowFuture?: boolean;
 }
 
-function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetProps) {
+function DateSheet({ visible, onClose, date, onChange, accentColor, allowFuture = false }: DateSheetProps) {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
   const color = accentColor ?? ds.primary;
@@ -683,7 +739,7 @@ function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetP
   const shiftDay = (delta: number) => {
     const d = new Date(local);
     d.setDate(d.getDate() + delta);
-    if (d <= today) setLocal(d);
+    if (allowFuture || d <= today) setLocal(d);
   };
 
   const shiftMonth = (delta: number) => {
@@ -691,9 +747,7 @@ function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetP
     let y = calYear;
     if (m < 0) { m = 11; y--; }
     if (m > 11) { m = 0; y++; }
-    const firstOfNextMonth = new Date(y, m + 1, 1);
-    if (firstOfNextMonth > new Date()) {
-      // only allow up to the current month
+    if (!allowFuture) {
       const now = new Date();
       if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth())) return;
     }
@@ -723,9 +777,10 @@ function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetP
   const yesterday = useMemo(() => { const d = new Date(todayMidnight); d.setDate(d.getDate() - 1); return d; }, [todayMidnight]);
 
   const canGoNextMonth = useMemo(() => {
+    if (allowFuture) return true;
     const now = new Date();
     return calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth());
-  }, [calYear, calMonth]);
+  }, [calYear, calMonth, allowFuture]);
 
   const isAtToday = isSameDay(local, todayMidnight);
 
@@ -830,7 +885,7 @@ function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetP
                       key={ci}
                       style={styles.calCell}
                       onPress={() => selectCalDay(d)}
-                      disabled={isFut}
+                      disabled={!allowFuture && isFut}
                       activeOpacity={0.7}
                     >
                       <View style={[
@@ -865,6 +920,55 @@ function DateSheet({ visible, onClose, date, onChange, accentColor }: DateSheetP
           <Text style={styles.dateConfirmText}>Confirm</Text>
         </TouchableOpacity>
       </ScrollView>
+    </BottomSheet>
+  );
+}
+
+// ── Frequency picker sheet ────────────────────────────────────────────────────
+
+const FREQ_OPTIONS: { value: RecurrenceFrequency; label: string; sub: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
+  { value: 'daily',   label: 'Daily',   sub: 'Every day',          icon: 'calendar-today' },
+  { value: 'weekly',  label: 'Weekly',  sub: 'Every 7 days',       icon: 'calendar-week' },
+  { value: 'monthly', label: 'Monthly', sub: 'Same day each month', icon: 'calendar-month' },
+  { value: 'yearly',  label: 'Yearly',  sub: 'Same date each year', icon: 'calendar-star' },
+];
+
+interface FrequencySheetProps {
+  visible: boolean;
+  onClose: () => void;
+  selected: RecurrenceFrequency;
+  onSelect: (f: RecurrenceFrequency) => void;
+  accentColor?: string;
+}
+
+function FrequencySheet({ visible, onClose, selected, onSelect, accentColor }: FrequencySheetProps) {
+  const ds = useDS();
+  const styles = useMemo(() => makeStyles(ds), [ds]);
+  const color = accentColor ?? ds.primary;
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Repeat Frequency">
+      <View style={styles.freqSheetBody}>
+        {FREQ_OPTIONS.map(opt => {
+          const isSelected = opt.value === selected;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.freqOption, isSelected && styles.freqOptionSelected]}
+              onPress={() => { onSelect(opt.value); onClose(); }}
+              activeOpacity={0.75}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: hexToRgba(color, 0.12) }}>
+                <MaterialCommunityIcons name={opt.icon} size={20} color={color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.freqOptionLabel, isSelected && { color }]}>{opt.label}</Text>
+                <Text style={styles.freqOptionSub}>{opt.sub}</Text>
+              </View>
+              {isSelected && <MaterialCommunityIcons name="check-circle" size={20} color={color} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </BottomSheet>
   );
 }
@@ -981,6 +1085,7 @@ export default function AddTransactionScreen() {
   const { incomeCategories, expenseCategories, loadFromDB: loadCats } = useCategoriesStore();
   const { accounts, loadFromDB: loadAccounts } = useAccountsStore();
   const { addTransaction, updateTransaction } = useTransactionsStore();
+  const { addRecurring, processDue } = useRecurringStore();
   const { currencySymbol } = useSettingsStore();
 
   const editTx = route.params?.editTx;
@@ -1012,9 +1117,13 @@ export default function AddTransactionScreen() {
   const [description, setDescription] = useState(() => editTx?.description ?? '');
   const [notes, setNotes]             = useState(() => editTx?.notes ?? '');
 
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
+
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [dateSheetOpen, setDateSheetOpen]       = useState(false);
+  const [freqSheetOpen, setFreqSheetOpen]       = useState(false);
   const [saving, setSaving]         = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -1086,20 +1195,37 @@ export default function AddTransactionScreen() {
     setSaving(true);
     try {
       const amountPaise = Math.round(parseFloat(amount) * 100);
-      const payload = {
-        type: txType,
-        amount: amountPaise,
-        account_id: accountId!,
-        category_id: categoryId,
-        transaction_date: toISODate(date),
-        transaction_time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
-        description: description.trim() || null,
-        notes: notes.trim() || null,
-      };
-      if (isEditing) {
-        await updateTransaction(editTx!.id, payload);
+      const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+      if (isRecurring && !isEditing) {
+        await addRecurring({
+          type: txType,
+          amount: amountPaise,
+          account_id: accountId!,
+          category_id: categoryId,
+          description: description.trim() || null,
+          notes: notes.trim() || null,
+          frequency,
+          start_date: toISODate(date),
+          time_of_day: timeStr,
+        });
+        await processDue();
       } else {
-        await addTransaction(payload);
+        const payload = {
+          type: txType,
+          amount: amountPaise,
+          account_id: accountId!,
+          category_id: categoryId,
+          transaction_date: toISODate(date),
+          transaction_time: timeStr,
+          description: description.trim() || null,
+          notes: notes.trim() || null,
+        };
+        if (isEditing) {
+          await updateTransaction(editTx!.id, payload);
+        } else {
+          await addTransaction(payload);
+        }
       }
       setShowSuccess(true);
       setTimeout(() => navigation.goBack(), 700);
@@ -1265,6 +1391,39 @@ export default function AddTransactionScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={ds.text.muted} />
             </TouchableOpacity>
+            <View style={styles.divider} />
+
+            {/* Recurring */}
+            {!isEditing && (
+              <View style={styles.recurringRow}>
+                <View style={[styles.detailIcon, { backgroundColor: hexToRgba(ds.purple, 0.12) }]}>
+                  <MaterialCommunityIcons name="repeat" size={18} color={ds.purple} />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Recurring</Text>
+                  {isRecurring ? (
+                    <TouchableOpacity
+                      style={[styles.freqChip, { borderColor: typeColor, backgroundColor: hexToRgba(typeColor, 0.1) }]}
+                      onPress={() => setFreqSheetOpen(true)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="chevron-down" size={14} color={typeColorLight} />
+                      <Text style={[styles.freqChipText, { color: typeColorLight }]}>
+                        {FREQ_OPTIONS.find(f => f.value === frequency)?.label ?? 'Monthly'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.detailValue}>Off</Text>
+                  )}
+                </View>
+                <Switch
+                  value={isRecurring}
+                  onValueChange={setIsRecurring}
+                  trackColor={{ false: ds.border.subtle, true: hexToRgba(typeColor, 0.45) }}
+                  thumbColor={isRecurring ? typeColor : ds.text.muted}
+                />
+              </View>
+            )}
           </View>
 
           {/* ── Description ── */}
@@ -1318,7 +1477,13 @@ export default function AddTransactionScreen() {
           >
             <MaterialCommunityIcons name="plus-circle-outline" size={20} color="#fff" />
             <Text style={styles.saveBtnText}>
-              {saving ? 'Saving…' : isEditing ? `Update ${txType === 'income' ? 'Income' : 'Expense'}` : `Add ${txType === 'income' ? 'Income' : 'Expense'}`}
+              {saving
+                ? 'Saving…'
+                : isEditing
+                  ? `Update ${txType === 'income' ? 'Income' : 'Expense'}`
+                  : isRecurring
+                    ? `Set Up Recurring`
+                    : `Add ${txType === 'income' ? 'Income' : 'Expense'}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1336,6 +1501,14 @@ export default function AddTransactionScreen() {
         onClose={() => setDateSheetOpen(false)}
         date={date}
         onChange={setDate}
+        accentColor={typeColor}
+        allowFuture={isRecurring}
+      />
+      <FrequencySheet
+        visible={freqSheetOpen}
+        onClose={() => setFreqSheetOpen(false)}
+        selected={frequency}
+        onSelect={setFrequency}
         accentColor={typeColor}
       />
       <CategorySheet

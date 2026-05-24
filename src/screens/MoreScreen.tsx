@@ -65,6 +65,14 @@ const GRID_SERVICES: ServiceItem[] = [
     iconBg: '#6B7482',
     target: 'Settings',
   },
+  {
+    id: 'recurring',
+    title: 'Recurring',
+    description: 'Auto-create income & expenses.',
+    icon: 'repeat',
+    iconBg: '#06B6D4',
+    target: 'Recurring',
+  },
 ];
 
 

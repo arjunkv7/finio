@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
@@ -16,6 +16,8 @@ import { DS } from './src/constants';
 import RootNavigator from './src/navigation/RootNavigator';
 import { getDb, getSettings } from './src/db/database';
 import { useSettingsStore } from './src/store/settingsStore';
+import { useRecurringStore } from './src/store/recurringStore';
+import { useTransactionsStore } from './src/store/transactionsStore';
 
 const darkNavTheme = {
   ...DarkTheme,
@@ -62,6 +64,27 @@ const lightPaperTheme = {
     primary: DS.primary,
   },
 };
+
+function RecurringProcessor() {
+  const processDue = useRecurringStore(s => s.processDue);
+  const loadTransactions = useTransactionsStore(s => s.loadFromDB);
+  const didRun = useRef(false);
+
+  const run = async () => {
+    const count = await processDue();
+    if (count > 0) await loadTransactions();
+  };
+
+  useEffect(() => {
+    if (!didRun.current) { didRun.current = true; run(); }
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') run();
+    });
+    return () => sub.remove();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 export default function App() {
   const [dbReady, setDbReady]   = useState(false);
@@ -114,6 +137,7 @@ export default function App() {
         <PaperProvider theme={paperTheme}>
           <NavigationContainer theme={navTheme}>
             <StatusBar style={isDark ? 'light' : 'dark'} />
+            <RecurringProcessor />
             <RootNavigator />
           </NavigationContainer>
         </PaperProvider>

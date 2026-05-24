@@ -9,6 +9,7 @@ import TripsStack from './TripsStack';
 import SavingsScreen from '../screens/SavingsScreen';
 import InvestmentsScreen from '../screens/InvestmentsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import RecurringScreen from '../screens/RecurringScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -27,6 +28,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Savings"     component={SavingsScreen} />
       <Stack.Screen name="Investments" component={InvestmentsScreen} />
       <Stack.Screen name="Settings"    component={SettingsScreen} />
+      <Stack.Screen name="Recurring"   component={RecurringScreen} />
     </Stack.Navigator>
   );
 }

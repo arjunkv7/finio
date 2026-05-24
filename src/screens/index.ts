@@ -11,3 +11,4 @@ export { default as InvestmentsScreen } from './InvestmentsScreen';
 export { default as TripListScreen } from './trips/TripListScreen';
 export { default as TripDetailScreen } from './trips/TripDetailScreen';
 export { default as AddTripExpenseScreen } from './trips/AddTripExpenseScreen';
+export { default as RecurringScreen } from './RecurringScreen';

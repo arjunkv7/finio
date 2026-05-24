@@ -85,6 +85,7 @@ export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type RecurrenceRule = 'monthly' | 'weekly' | 'yearly';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface Transaction {
   id: string;
@@ -307,6 +308,47 @@ export interface Settlement {
   to_name: string;
   amount: number;
 }
+
+// ─── Recurring Transactions ──────────────────────────────────────────────────
+
+export interface RecurringTransaction {
+  id: string;
+  type: 'income' | 'expense';
+  amount: number;
+  account_id: string;
+  category_id: string | null;
+  description: string | null;
+  notes: string | null;
+  frequency: RecurrenceFrequency;
+  next_run_date: string;
+  time_of_day: string;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateRecurringTransactionInput {
+  type: 'income' | 'expense';
+  amount: number;
+  account_id: string;
+  category_id?: string | null;
+  description?: string | null;
+  notes?: string | null;
+  frequency: RecurrenceFrequency;
+  start_date: string;
+  time_of_day?: string;
+}
+
+export type UpdateRecurringTransactionInput = Partial<{
+  amount: number;
+  category_id: string | null;
+  description: string | null;
+  notes: string | null;
+  frequency: RecurrenceFrequency;
+  next_run_date: string;
+  time_of_day: string;
+  is_active: number;
+}>;
 
 // ─── Budgets ─────────────────────────────────────────────────────────────────
 
