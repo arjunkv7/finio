@@ -6,7 +6,7 @@ import {
   Animated,
   StyleSheet,
   Dimensions,
-  TouchableWithoutFeedback,
+  Pressable,
   Platform,
   Keyboard,
   ScrollView,
@@ -157,9 +157,9 @@ export default function BottomSheet({
       onRequestClose={onClose}
     >
       {/* Backdrop */}
-      <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} />
-      </TouchableWithoutFeedback>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} pointerEvents="none" />
+      </Pressable>
 
       {/* Sheet */}
       <Animated.View
