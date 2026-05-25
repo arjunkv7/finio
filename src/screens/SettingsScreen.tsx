@@ -23,6 +23,7 @@ import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSettingsStore } from '../store/settingsStore';
+import { useSmsTransactionsStore } from '../store/smsTransactionsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
@@ -745,7 +746,8 @@ export default function SettingsScreen() {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
 
-  const { currencyCode, currencySymbol, theme, pinEnabled, driveConnected, lastBackupAt, saveToDb, loadFromDB } = useSettingsStore();
+  const { currencyCode, currencySymbol, theme, pinEnabled, driveConnected, lastBackupAt, smsAutoDetect, saveToDb, loadFromDB } = useSettingsStore();
+  const { pendingCount, loadPending } = useSmsTransactionsStore();
   const { loadFromDB: loadCategories } = useCategoriesStore();
   const loadAccounts     = useAccountsStore(s => s.loadFromDB);
   const loadTransactions = useTransactionsStore(s => s.loadFromDB);
@@ -758,7 +760,7 @@ export default function SettingsScreen() {
   const [showPINModal,    setShowPINModal]    = useState(false);
   const [clearing,        setClearing]        = useState(false);
 
-  useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); }, [loadFromDB, loadCategories]));
+  useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); loadPending(); }, [loadFromDB, loadCategories, loadPending]));
 
   if (view === 'categories') {
     return <ManageCategoriesView onBack={() => setView('main')} />;
@@ -943,6 +945,33 @@ export default function SettingsScreen() {
                 icon="pencil-outline"
                 label="Change PIN"
                 onPress={() => setShowPINModal(true)}
+              />
+            </>
+          )}
+        </AppCard>
+
+        {/* ── AUTOMATION ── */}
+        <Text style={styles.sectionLabel}>Automation</Text>
+        <AppCard padding={0} style={styles.card}>
+          <SettingsRow
+            icon="message-text-outline"
+            label="SMS Transaction Detection"
+            right={
+              <Switch
+                value={smsAutoDetect === 1}
+                onValueChange={v => saveToDb({ smsAutoDetect: v ? 1 : 0 })}
+                trackColor={{ true: ds.primary, false: ds.surface.elevated }}
+                thumbColor={smsAutoDetect === 1 ? ds.primaryLight : ds.text.muted}
+              />
+            }
+          />
+          {smsAutoDetect === 1 && (
+            <>
+              <View style={styles.rowDivider} />
+              <SettingsRow
+                icon="inbox-arrow-down-outline"
+                label={pendingCount > 0 ? `Review Detected (${pendingCount})` : 'Review Detected'}
+                onPress={() => navigation.navigate('SmsTransactions')}
               />
             </>
           )}

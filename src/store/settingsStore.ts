@@ -11,6 +11,7 @@ interface SettingsState {
   driveConnected: number;
   lastBackupAt: string | null;
   schemaVersion: number;
+  smsAutoDetect: number;
 
   // ── Meta ───────────────────────────────────────────────────────────────────
   isLoaded: boolean;
@@ -21,7 +22,7 @@ interface SettingsState {
   loadFromDB: () => Promise<void>;
   saveToDb: (
     patch: Partial<
-      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'driveConnected' | 'lastBackupAt'>
+      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'driveConnected' | 'lastBackupAt' | 'smsAutoDetect'>
     >
   ) => Promise<void>;
 
@@ -38,6 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   driveConnected: 0,
   lastBackupAt: null,
   schemaVersion: 1,
+  smsAutoDetect: 1,
 
   isLoaded: false,
   isLoading: false,
@@ -56,6 +58,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           driveConnected: row.drive_connected ?? 0,
           lastBackupAt: row.last_backup_at ?? null,
           schemaVersion: row.schema_version,
+          smsAutoDetect: row.sms_auto_detect ?? 1,
           isLoaded: true,
           isLoading: false,
         });
@@ -75,9 +78,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (patch.pinEnabled != null) dbFields.pin_enabled = patch.pinEnabled;
     if (patch.driveConnected != null) dbFields.drive_connected = patch.driveConnected;
     if (patch.lastBackupAt !== undefined) dbFields.last_backup_at = patch.lastBackupAt;
+    if (patch.smsAutoDetect != null) dbFields.sms_auto_detect = patch.smsAutoDetect;
 
-    await updateSettings(dbFields);
     set(patch as Partial<SettingsState>);
+    await updateSettings(dbFields);
   },
 
   // Backward-compat shims (App.tsx calls these directly after DB read)

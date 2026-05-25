@@ -350,6 +350,38 @@ export type UpdateRecurringTransactionInput = Partial<{
   is_active: number;
 }>;
 
+// ─── SMS Transactions ────────────────────────────────────────────────────────
+
+export type SmsTransactionStatus = 'pending' | 'approved' | 'dismissed' | 'auto_created';
+
+export interface SmsTransaction {
+  id: string;
+  sms_id: string | null;
+  sender: string;
+  raw_body: string;
+  amount: number;
+  type: 'income' | 'expense';
+  account_type: string;
+  description: string | null;
+  message_date: string;
+  message_time: string;
+  status: SmsTransactionStatus;
+  transaction_id: string | null;
+  created_at: string;
+}
+
+export interface CreateSmsTransactionInput {
+  smsId: string | null;
+  sender: string;
+  rawBody: string;
+  amount: number;
+  type: 'income' | 'expense';
+  accountType: string;
+  description: string | null;
+  messageDate: string;
+  messageTime: string;
+}
+
 // ─── Budgets ─────────────────────────────────────────────────────────────────
 
 export interface Budget {

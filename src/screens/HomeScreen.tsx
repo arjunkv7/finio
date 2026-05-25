@@ -25,6 +25,7 @@ import { useCategoriesStore } from '../store/categoriesStore';
 import { useSettingsStore } from '../store/settingsStore';
 import AppCard from '../components/AppCard';
 import AmountText from '../components/AmountText';
+import { getUnreadNotificationsCount } from '../db/queries/notificationQueries';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -181,8 +182,9 @@ export default function HomeScreen() {
   const navigation     = useNavigation<any>();
   const insets         = useSafeAreaInsets();
   const { currencySymbol } = useSettingsStore();
-  const [privacyHidden, setPrivacyHidden] = useState(false);
+  const [privacyHidden, setPrivacyHidden]   = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [unreadCount, setUnreadCount]       = useState(0);
 
   const { totalBalance, loadFromDB: loadAccounts }         = useAccountsStore();
   const { getCategoryById, loadFromDB: loadCategories }    = useCategoriesStore();
@@ -197,7 +199,10 @@ export default function HomeScreen() {
     await Promise.all([loadAccounts(), loadCategories(), loadTransactions()]);
   }, [loadAccounts, loadCategories, loadTransactions]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    getUnreadNotificationsCount().then(setUnreadCount);
+  }, [load]));
 
   React.useEffect(() => {
     return navigation.addListener('tabPress' as any, () => {
@@ -228,8 +233,17 @@ export default function HomeScreen() {
             <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} onPress={() => setPrivacyHidden(h => !h)} activeOpacity={0.7}>
               <MaterialCommunityIcons name={privacyHidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={ds.text.secondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]}
+              onPress={() => navigation.navigate('Notifications')}
+              activeOpacity={0.7}
+            >
               <MaterialCommunityIcons name="bell-outline" size={20} color={ds.text.secondary} />
+              {unreadCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: ds.primary }]}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </>
         }
@@ -448,6 +462,24 @@ function makeStyles(ds: DSType) {
       borderColor: ds.border.subtle,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+
+    badge: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 3,
+    },
+    badgeText: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 9,
+      color: '#fff',
+      lineHeight: 13,
     },
 
     monthBtn: {

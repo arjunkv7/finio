@@ -18,6 +18,8 @@ import { getDb, getSettings } from './src/db/database';
 import { useSettingsStore } from './src/store/settingsStore';
 import { useRecurringStore } from './src/store/recurringStore';
 import { useTransactionsStore } from './src/store/transactionsStore';
+import { useSmsTransactionsStore } from './src/store/smsTransactionsStore';
+import { initialInboxScan } from './src/services/smsService';
 
 const darkNavTheme = {
   ...DarkTheme,
@@ -64,6 +66,31 @@ const lightPaperTheme = {
     primary: DS.primary,
   },
 };
+
+function SmsProcessor() {
+  const smsAutoDetect  = useSettingsStore(s => s.smsAutoDetect);
+  const loadPending    = useSmsTransactionsStore(s => s.loadPending);
+  const loadAutoCreated = useSmsTransactionsStore(s => s.loadAutoCreated);
+  const didRun         = useRef(false);
+
+  const run = async () => {
+    if (!smsAutoDetect) return;
+    // One-time inbox scan (no-ops if already done — BroadcastReceiver handles new SMS)
+    await initialInboxScan();
+    await Promise.all([loadPending(), loadAutoCreated()]);
+  };
+
+  useEffect(() => {
+    if (!didRun.current) { didRun.current = true; run(); }
+    // Refresh on foreground — BroadcastReceiver may have auto-created new transactions
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') Promise.all([loadPending(), loadAutoCreated()]);
+    });
+    return () => sub.remove();
+  }, [smsAutoDetect]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 function RecurringProcessor() {
   const processDue = useRecurringStore(s => s.processDue);
@@ -138,6 +165,7 @@ export default function App() {
           <NavigationContainer theme={navTheme}>
             <StatusBar style={isDark ? 'light' : 'dark'} />
             <RecurringProcessor />
+            <SmsProcessor />
             <RootNavigator />
           </NavigationContainer>
         </PaperProvider>

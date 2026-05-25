@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -102,6 +102,33 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
     `);
     await setSchemaVersion(db, 4);
   }
+  if (from < 5) {
+    await db.execAsync(`
+      ALTER TABLE settings ADD COLUMN sms_auto_detect INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE settings ADD COLUMN sms_last_processed_at TEXT;
+
+      CREATE TABLE IF NOT EXISTS sms_transactions (
+        id               TEXT    PRIMARY KEY,
+        sms_id           TEXT,
+        sender           TEXT    NOT NULL,
+        raw_body         TEXT    NOT NULL,
+        amount           INTEGER NOT NULL,
+        type             TEXT    NOT NULL,
+        account_type     TEXT    NOT NULL DEFAULT 'bank',
+        description      TEXT,
+        message_date     TEXT    NOT NULL,
+        message_time     TEXT    NOT NULL,
+        status           TEXT    NOT NULL DEFAULT 'pending',
+        transaction_id   TEXT    REFERENCES transactions(id),
+        created_at       TEXT    NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_sms_transactions_status
+        ON sms_transactions(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_transactions_sms_id
+        ON sms_transactions(sms_id) WHERE sms_id IS NOT NULL;
+    `);
+    await setSchemaVersion(db, 5);
+  }
 }
 
 // ─── Schema creation ─────────────────────────────────────────────────────────
@@ -109,17 +136,19 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
 async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS settings (
-      id                INTEGER PRIMARY KEY,
-      currency_code     TEXT    NOT NULL DEFAULT 'INR',
-      currency_symbol   TEXT    NOT NULL DEFAULT '₹',
-      theme             TEXT    NOT NULL DEFAULT 'system',
-      pin_enabled       INTEGER NOT NULL DEFAULT 0,
-      pin_hash          TEXT,
-      drive_connected   INTEGER NOT NULL DEFAULT 0,
-      last_backup_at    TEXT,
-      schema_version    INTEGER NOT NULL DEFAULT 1,
-      created_at        TEXT    NOT NULL,
-      updated_at        TEXT    NOT NULL
+      id                      INTEGER PRIMARY KEY,
+      currency_code           TEXT    NOT NULL DEFAULT 'INR',
+      currency_symbol         TEXT    NOT NULL DEFAULT '₹',
+      theme                   TEXT    NOT NULL DEFAULT 'system',
+      pin_enabled             INTEGER NOT NULL DEFAULT 0,
+      pin_hash                TEXT,
+      drive_connected         INTEGER NOT NULL DEFAULT 0,
+      last_backup_at          TEXT,
+      schema_version          INTEGER NOT NULL DEFAULT 1,
+      sms_auto_detect         INTEGER NOT NULL DEFAULT 1,
+      sms_last_processed_at   TEXT,
+      created_at              TEXT    NOT NULL,
+      updated_at              TEXT    NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS accounts (
@@ -261,6 +290,22 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at TEXT    NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS sms_transactions (
+      id               TEXT    PRIMARY KEY,
+      sms_id           TEXT,
+      sender           TEXT    NOT NULL,
+      raw_body         TEXT    NOT NULL,
+      amount           INTEGER NOT NULL,
+      type             TEXT    NOT NULL,
+      account_type     TEXT    NOT NULL DEFAULT 'bank',
+      description      TEXT,
+      message_date     TEXT    NOT NULL,
+      message_time     TEXT    NOT NULL,
+      status           TEXT    NOT NULL DEFAULT 'pending',
+      transaction_id   TEXT    REFERENCES transactions(id),
+      created_at       TEXT    NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS recurring_transactions (
       id            TEXT    PRIMARY KEY,
       type          TEXT    NOT NULL,
@@ -309,6 +354,11 @@ async function createIndexes(db: SQLite.SQLiteDatabase): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_recurring_next_run_date
       ON recurring_transactions(next_run_date, is_active);
+
+    CREATE INDEX IF NOT EXISTS idx_sms_transactions_status
+      ON sms_transactions(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_transactions_sms_id
+      ON sms_transactions(sms_id) WHERE sms_id IS NOT NULL;
   `);
 }
 
@@ -394,6 +444,8 @@ export async function getSettings() {
     drive_connected: number;
     last_backup_at: string | null;
     schema_version: number;
+    sms_auto_detect: number;
+    sms_last_processed_at: string | null;
   }>('SELECT * FROM settings WHERE id = 1');
 }
 
@@ -423,6 +475,7 @@ export async function clearAllUserData(): Promise<void> {
     await db.runAsync('DELETE FROM budgets');
     await db.runAsync('DELETE FROM notifications');
     await db.runAsync('DELETE FROM recurring_transactions');
+    await db.runAsync('DELETE FROM sms_transactions');
     await db.runAsync(
       `UPDATE settings SET pin_enabled = 0, pin_hash = NULL, last_backup_at = NULL WHERE id = 1`
     );

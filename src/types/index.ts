@@ -31,4 +31,6 @@ export type RootStackParamList = {
   Investments: undefined;
   Settings: undefined;
   Recurring: undefined;
+  SmsTransactions: undefined;
+  Notifications: undefined;
 };

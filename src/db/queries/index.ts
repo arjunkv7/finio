@@ -6,3 +6,4 @@ export * from './investmentQueries';
 export * from './tripQueries';
 export * from './budgetQueries';
 export * from './notificationQueries';
+export * from './smsTransactionQueries';

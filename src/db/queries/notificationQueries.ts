@@ -47,3 +47,18 @@ export async function markAllNotificationsRead(): Promise<void> {
   const db = await getDb();
   await db.runAsync('UPDATE notifications SET is_read = 1');
 }
+
+export async function getAllNotifications(): Promise<AppNotification[]> {
+  const db = await getDb();
+  return db.getAllAsync<AppNotification>(
+    'SELECT * FROM notifications ORDER BY created_at DESC LIMIT 100'
+  );
+}
+
+export async function getUnreadNotificationsCount(): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0'
+  );
+  return row?.count ?? 0;
+}
