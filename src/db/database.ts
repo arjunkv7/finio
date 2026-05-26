@@ -186,6 +186,7 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       description        TEXT,
       notes              TEXT,
       transaction_date   TEXT    NOT NULL,
+      transaction_time   TEXT,
       receipt_photo_uri  TEXT,
       is_recurring       INTEGER NOT NULL DEFAULT 0,
       recurrence_rule    TEXT,

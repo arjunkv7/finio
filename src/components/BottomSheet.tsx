@@ -40,6 +40,7 @@ function makeStyles(ds: DSType) {
       bottom: 0,
       left: 0,
       right: 0,
+      zIndex: 1,
       backgroundColor: ds.surface.card,
       borderTopLeftRadius: ds.radius.xl,
       borderTopRightRadius: ds.radius.xl,

@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.finio"
+      "package": "com.finio.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
