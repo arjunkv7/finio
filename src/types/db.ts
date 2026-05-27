@@ -10,6 +10,9 @@ export interface Settings {
   drive_connected: number;
   last_backup_at: string | null;
   schema_version: number;
+  sms_auto_detect: number;
+  sms_last_processed_at: string | null;
+  privacy_hidden: number;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +27,7 @@ export type UpdateSettingsInput = Partial<
     | 'pin_hash'
     | 'drive_connected'
     | 'last_backup_at'
+    | 'privacy_hidden'
   >
 >;
 

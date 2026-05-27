@@ -12,6 +12,7 @@ interface SettingsState {
   lastBackupAt: string | null;
   schemaVersion: number;
   smsAutoDetect: number;
+  privacyHidden: number;
 
   // ── Meta ───────────────────────────────────────────────────────────────────
   isLoaded: boolean;
@@ -22,7 +23,7 @@ interface SettingsState {
   loadFromDB: () => Promise<void>;
   saveToDb: (
     patch: Partial<
-      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'driveConnected' | 'lastBackupAt' | 'smsAutoDetect'>
+      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'driveConnected' | 'lastBackupAt' | 'smsAutoDetect' | 'privacyHidden'>
     >
   ) => Promise<void>;
 
@@ -40,6 +41,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   lastBackupAt: null,
   schemaVersion: 1,
   smsAutoDetect: 1,
+  privacyHidden: 0,
 
   isLoaded: false,
   isLoading: false,
@@ -59,6 +61,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           lastBackupAt: row.last_backup_at ?? null,
           schemaVersion: row.schema_version,
           smsAutoDetect: row.sms_auto_detect ?? 1,
+          privacyHidden: row.privacy_hidden ?? 0,
           isLoaded: true,
           isLoading: false,
         });
@@ -79,6 +82,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (patch.driveConnected != null) dbFields.drive_connected = patch.driveConnected;
     if (patch.lastBackupAt !== undefined) dbFields.last_backup_at = patch.lastBackupAt;
     if (patch.smsAutoDetect != null) dbFields.sms_auto_detect = patch.smsAutoDetect;
+    if (patch.privacyHidden != null) dbFields.privacy_hidden = patch.privacyHidden;
 
     set(patch as Partial<SettingsState>);
     await updateSettings(dbFields);

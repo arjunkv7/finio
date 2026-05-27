@@ -182,8 +182,7 @@ export default function HomeScreen() {
   const styles         = useMemo(() => makeStyles(ds), [ds]);
   const navigation     = useNavigation<any>();
   const insets         = useSafeAreaInsets();
-  const { currencySymbol } = useSettingsStore();
-  const [privacyHidden, setPrivacyHidden]   = useState(false);
+  const { currencySymbol, privacyHidden, saveToDb } = useSettingsStore();
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [unreadCount, setUnreadCount]       = useState(0);
   const [refreshing, setRefreshing]         = useState(false);
@@ -244,7 +243,7 @@ export default function HomeScreen() {
       <BrandHeader
         right={
           <>
-            <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} onPress={() => setPrivacyHidden(h => !h)} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.bellBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]} onPress={() => saveToDb({ privacyHidden: privacyHidden ? 0 : 1 })} activeOpacity={0.7}>
               <MaterialCommunityIcons name={privacyHidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={ds.text.secondary} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -374,7 +373,7 @@ export default function HomeScreen() {
         <AppCard padding={20} style={styles.savingsCard}>
           <Text style={styles.sectionTitle}>Savings Overview</Text>
           <View style={styles.savingsBody}>
-            <SavingsRing rate={savingsRate} ds={ds} styles={styles} privacy={privacyHidden} />
+            <SavingsRing rate={savingsRate} ds={ds} styles={styles} privacy={!!privacyHidden} />
             <View style={styles.savingsLegend}>
               {[
                 { label: 'Income',   value: monthlySummary.income,   color: ds.primaryLight },

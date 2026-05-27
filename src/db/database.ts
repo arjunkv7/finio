@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -107,6 +107,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
       ALTER TABLE settings ADD COLUMN sms_auto_detect INTEGER NOT NULL DEFAULT 1;
       ALTER TABLE settings ADD COLUMN sms_last_processed_at TEXT;
 
+
       CREATE TABLE IF NOT EXISTS sms_transactions (
         id               TEXT    PRIMARY KEY,
         sms_id           TEXT,
@@ -129,6 +130,10 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
     `);
     await setSchemaVersion(db, 5);
   }
+  if (from < 6) {
+    await db.execAsync(`ALTER TABLE settings ADD COLUMN privacy_hidden INTEGER NOT NULL DEFAULT 0;`);
+    await setSchemaVersion(db, 6);
+  }
 }
 
 // ─── Schema creation ─────────────────────────────────────────────────────────
@@ -147,6 +152,7 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       schema_version          INTEGER NOT NULL DEFAULT 1,
       sms_auto_detect         INTEGER NOT NULL DEFAULT 1,
       sms_last_processed_at   TEXT,
+      privacy_hidden          INTEGER NOT NULL DEFAULT 0,
       created_at              TEXT    NOT NULL,
       updated_at              TEXT    NOT NULL
     );
