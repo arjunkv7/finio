@@ -8,6 +8,7 @@ import {
   archiveAccount as dbArchiveAccount,
   deleteAccount as dbDeleteAccount,
 } from '../db/queries';
+import { ensureDefaultAccounts } from '../db/database';
 
 export interface AccountWithBalance extends Account {
   balance: number;
@@ -60,6 +61,7 @@ export const useAccountsStore = create<AccountsState>((set, get) => ({
   loadFromDB: async () => {
     set({ isLoading: true, error: null });
     try {
+      await ensureDefaultAccounts();
       const { accounts, totalBalance } = await loadAccountsWithBalances();
       set({ accounts, totalBalance, isLoading: false });
     } catch (err) {

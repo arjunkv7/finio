@@ -66,8 +66,13 @@ const SmsTransactionTask = async (taskData: SmsTaskData): Promise<void> => {
 
     await Promise.all([
       Notifications.scheduleNotificationAsync({
-        content: { title, body: notifBody },
-        trigger: null,
+        content: { title, body: notifBody, sound: true },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 1,
+          repeats: false,
+          channelId: 'transactions',
+        },
       }),
       createNotification({ type: 'sms_detected', title, body: notifBody }),
     ]);

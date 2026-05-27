@@ -383,10 +383,15 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
       [SCHEMA_VERSION, now, now]
     );
 
-    // Default account
+    // Default accounts
     await db.runAsync(
       `INSERT INTO accounts (id, name, type, opening_balance, sort_order, created_at, updated_at)
-       VALUES (?, 'Cash', 'cash', 0, 0, ?, ?)`,
+       VALUES (?, 'Cash', 'cash', 0, 1, ?, ?)`,
+      [uuidv4(), now, now]
+    );
+    await db.runAsync(
+      `INSERT INTO accounts (id, name, type, opening_balance, sort_order, created_at, updated_at)
+       VALUES (?, 'Bank', 'bank', 0, 0, ?, ?)`,
       [uuidv4(), now, now]
     );
 
@@ -453,6 +458,7 @@ export async function getSettings() {
     schema_version: number;
     sms_auto_detect: number;
     sms_last_processed_at: string | null;
+    privacy_hidden: number;
   }>('SELECT * FROM settings WHERE id = 1');
 }
 
@@ -486,6 +492,25 @@ export async function clearAllUserData(): Promise<void> {
     await db.runAsync('DELETE FROM notifications');
     await db.runAsync(
       `UPDATE settings SET pin_enabled = 0, pin_hash = NULL, last_backup_at = NULL WHERE id = 1`
+    );
+  });
+}
+
+export async function ensureDefaultAccounts(): Promise<void> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM accounts');
+  if ((row?.count ?? 0) > 0) return;
+  const now = new Date().toISOString();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `INSERT INTO accounts (id, name, type, opening_balance, sort_order, created_at, updated_at)
+       VALUES (?, 'Bank', 'bank', 0, 0, ?, ?)`,
+      [uuidv4(), now, now]
+    );
+    await db.runAsync(
+      `INSERT INTO accounts (id, name, type, opening_balance, sort_order, created_at, updated_at)
+       VALUES (?, 'Cash', 'cash', 0, 1, ?, ?)`,
+      [uuidv4(), now, now]
     );
   });
 }

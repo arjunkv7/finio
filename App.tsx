@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { AppState, AppStateStatus, Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import {
   useFonts,
   Inter_400Regular,
@@ -66,6 +67,24 @@ const lightPaperTheme = {
     primary: DS.primary,
   },
 };
+
+function NotificationSetup() {
+  useEffect(() => {
+    (async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') return;
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('transactions', {
+          name: 'Auto-detected Transactions',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250],
+          showBadge: false,
+        });
+      }
+    })();
+  }, []);
+  return null;
+}
 
 function SmsProcessor() {
   const smsAutoDetect  = useSettingsStore(s => s.smsAutoDetect);
@@ -155,6 +174,7 @@ export default function App() {
         <PaperProvider theme={paperTheme}>
           <NavigationContainer theme={navTheme}>
             <StatusBar style={isDark ? 'light' : 'dark'} />
+            <NotificationSetup />
             <RecurringProcessor />
             <SmsProcessor />
             <RootNavigator />

@@ -12,6 +12,10 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring,
+} from 'react-native-reanimated';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types';
@@ -62,6 +66,24 @@ function AutoCreatedReviewModal() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [edits, setEdits]           = useState<Record<string, CardEdit>>({});
   const [saving, setSaving]         = useState(false);
+
+  const translateY  = useSharedValue(0);
+  const sheetStyle  = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  const panGesture = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetY([5, Infinity])
+    .onUpdate((e) => {
+      translateY.value = Math.max(0, e.translationY);
+    })
+    .onEnd((e) => {
+      if (e.translationY > 120 || e.velocityY > 600) {
+        translateY.value = 0;
+        snoozeReview();
+      } else {
+        translateY.value = withSpring(0, { damping: 20 });
+      }
+    });
 
   if (autoCreated.length === 0 || snoozed) return null;
 
@@ -290,34 +312,30 @@ function AutoCreatedReviewModal() {
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.sheet, { backgroundColor: ds.surface.card }]}>
-          {/* Handle */}
-          <View style={[styles.handle, { backgroundColor: ds.border.strong }]} />
+        <Animated.View style={[styles.sheet, { backgroundColor: ds.surface.card }, sheetStyle]}>
+          <GestureDetector gesture={panGesture}>
+            <View>
+              {/* Handle */}
+              <View style={[styles.handle, { backgroundColor: ds.border.strong }]} />
 
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={[styles.headerIcon, { backgroundColor: 'rgba(139,92,246,0.15)' }]}>
-              <MaterialCommunityIcons name="message-check-outline" size={22} color={ds.primary} />
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={[styles.headerIcon, { backgroundColor: 'rgba(139,92,246,0.15)' }]}>
+                  <MaterialCommunityIcons name="message-check-outline" size={22} color={ds.primary} />
+                </View>
+                <View style={styles.headerText}>
+                  <Text style={[styles.headerTitle, { color: ds.text.primary }]}>
+                    {autoCreated.length === 1
+                      ? '1 Transaction Auto-Added'
+                      : `${autoCreated.length} Transactions Auto-Added`}
+                  </Text>
+                  <Text style={[styles.headerSub, { color: ds.text.secondary }]}>
+                    Swipe down to review later · Tap to edit
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.headerText}>
-              <Text style={[styles.headerTitle, { color: ds.text.primary }]}>
-                {autoCreated.length === 1
-                  ? '1 Transaction Auto-Added'
-                  : `${autoCreated.length} Transactions Auto-Added`}
-              </Text>
-              <Text style={[styles.headerSub, { color: ds.text.secondary }]}>
-                Tap a transaction to edit details.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.laterBtn}
-              onPress={snoozeReview}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={[styles.laterBtnText, { color: ds.text.muted }]}>Later</Text>
-            </TouchableOpacity>
-          </View>
+          </GestureDetector>
 
           {/* List */}
           <FlatList
@@ -349,7 +367,7 @@ function AutoCreatedReviewModal() {
               <Text style={styles.acceptBtnText}>Looks Good</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
