@@ -28,6 +28,10 @@ interface SmsTransactionsState {
   dismiss: (id: string) => Promise<void>;
   dismissAll: () => Promise<void>;
 
+  snoozed: boolean;
+  snoozeReview: () => void;
+  unsnoozeReview: () => void;
+
   loadAutoCreated: () => Promise<void>;
   acceptAllAutoCreated: () => Promise<void>;
   deleteAutoCreated: (smsId: string) => Promise<void>;
@@ -39,6 +43,7 @@ export const useSmsTransactionsStore = create<SmsTransactionsState>((set, get) =
   pendingCount: 0,
   isLoading: false,
   autoCreated: [],
+  snoozed: false,
 
   loadPending: async () => {
     set({ isLoading: true });
@@ -79,10 +84,14 @@ export const useSmsTransactionsStore = create<SmsTransactionsState>((set, get) =
     set({ pending: [], pendingCount: 0 });
   },
 
+  snoozeReview:   () => set({ snoozed: true }),
+  unsnoozeReview: () => set({ snoozed: false }),
+
   loadAutoCreated: async () => {
     try {
       const entries = await getAutoCreatedEntries();
-      set({ autoCreated: entries });
+      // Reset snooze when new entries arrive so the modal surfaces again
+      set(s => ({ autoCreated: entries, snoozed: entries.length > s.autoCreated.length ? false : s.snoozed }));
     } catch {
       set({ autoCreated: [] });
     }

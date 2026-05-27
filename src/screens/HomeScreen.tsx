@@ -26,6 +26,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import AppCard from '../components/AppCard';
 import AmountText from '../components/AmountText';
 import { getUnreadNotificationsCount } from '../db/queries/notificationQueries';
+import { useSmsTransactionsStore } from '../store/smsTransactionsStore';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -194,6 +195,11 @@ export default function HomeScreen() {
     loadFromDB: loadTransactions, setActiveMonth,
   } = useTransactionsStore();
 
+  const autoCreatedCount = useSmsTransactionsStore(s => s.autoCreated.length);
+  const snoozed          = useSmsTransactionsStore(s => s.snoozed);
+  const unsnoozeReview   = useSmsTransactionsStore(s => s.unsnoozeReview);
+  const loadAutoCreated  = useSmsTransactionsStore(s => s.loadAutoCreated);
+
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
@@ -208,8 +214,9 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     load();
+    loadAutoCreated();
     getUnreadNotificationsCount().then(setUnreadCount);
-  }, [load]));
+  }, [load, loadAutoCreated]));
 
   React.useEffect(() => {
     return navigation.addListener('tabPress' as any, () => {
@@ -270,6 +277,28 @@ export default function HomeScreen() {
           />
         }
       >
+
+        {/* ── Auto-transaction review banner ── */}
+        {autoCreatedCount > 0 && snoozed && (
+          <TouchableOpacity
+            style={styles.reviewBanner}
+            onPress={unsnoozeReview}
+            activeOpacity={0.85}
+          >
+            <View style={styles.reviewBannerIcon}>
+              <MaterialCommunityIcons name="message-check-outline" size={18} color={ds.primary} />
+            </View>
+            <View style={styles.reviewBannerText}>
+              <Text style={styles.reviewBannerTitle}>
+                {autoCreatedCount === 1
+                  ? '1 transaction needs review'
+                  : `${autoCreatedCount} transactions need review`}
+              </Text>
+              <Text style={styles.reviewBannerSub}>Auto-detected from SMS · Tap to review</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={ds.primary} />
+          </TouchableOpacity>
+        )}
 
         {/* ── Month Navigator ── */}
         <TouchableOpacity style={styles.monthBtn} onPress={() => setMonthPickerOpen(true)} activeOpacity={0.75}>
@@ -787,6 +816,22 @@ function makeStyles(ds: DSType) {
       color: ds.text.muted,
       textAlign: 'center',
     },
+
+    reviewBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      marginHorizontal: 16, marginBottom: 4,
+      padding: 14, borderRadius: ds.radius.lg,
+      backgroundColor: hexToRgba(ds.primary, 0.08),
+      borderWidth: 1, borderColor: hexToRgba(ds.primary, 0.25),
+    },
+    reviewBannerIcon: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: hexToRgba(ds.primary, 0.15),
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    reviewBannerText: { flex: 1, gap: 2 },
+    reviewBannerTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: ds.text.primary },
+    reviewBannerSub:   { fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.secondary },
 
   });
 }

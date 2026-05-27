@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDS } from '../hooks/useDS';
 
 interface BrandHeaderProps {
-  right?: React.ReactNode;
+  right?: React.ReactNode | null;
   onBack?: () => void;
 }
 
@@ -37,17 +37,17 @@ export default function BrandHeader({ right, onBack }: BrandHeaderProps) {
         </View>
       )}
 
-      {/* Right slot — default: bell */}
+      {/* Right slot — pass right={null} to hide, omit for default bell */}
       <View style={styles.rightSlot}>
-        {right !== undefined ? (
-          right
-        ) : (
+        {right === undefined ? (
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: ds.surface.card, borderColor: ds.border.subtle }]}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="bell-outline" size={20} color={ds.text.secondary} />
           </TouchableOpacity>
+        ) : (
+          right
         )}
       </View>
     </View>

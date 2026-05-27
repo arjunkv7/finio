@@ -463,20 +463,21 @@ export async function updateSettings(fields: Record<string, string | number | nu
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
+    // Delete in child-before-parent order to satisfy FK constraints
+    await db.runAsync('DELETE FROM trip_expense_splits');
+    await db.runAsync('DELETE FROM trip_expenses');
+    await db.runAsync('DELETE FROM sms_transactions');
     await db.runAsync('DELETE FROM transactions');
+    await db.runAsync('DELETE FROM trip_participants');
+    await db.runAsync('DELETE FROM trips');
+    await db.runAsync('DELETE FROM recurring_transactions');
+    await db.runAsync('DELETE FROM budgets');
+    await db.runAsync('DELETE FROM savings_contributions');
+    await db.runAsync('DELETE FROM savings_goals');
     await db.runAsync('DELETE FROM accounts');
     await db.runAsync('DELETE FROM categories WHERE is_system = 0');
-    await db.runAsync('DELETE FROM savings_goals');
-    await db.runAsync('DELETE FROM savings_contributions');
     await db.runAsync('DELETE FROM investments');
-    await db.runAsync('DELETE FROM trips');
-    await db.runAsync('DELETE FROM trip_participants');
-    await db.runAsync('DELETE FROM trip_expenses');
-    await db.runAsync('DELETE FROM trip_expense_splits');
-    await db.runAsync('DELETE FROM budgets');
     await db.runAsync('DELETE FROM notifications');
-    await db.runAsync('DELETE FROM recurring_transactions');
-    await db.runAsync('DELETE FROM sms_transactions');
     await db.runAsync(
       `UPDATE settings SET pin_enabled = 0, pin_hash = NULL, last_backup_at = NULL WHERE id = 1`
     );

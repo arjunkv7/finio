@@ -53,6 +53,8 @@ function AutoCreatedReviewModal() {
   const deleteEntry      = useSmsTransactionsStore(s => s.deleteAutoCreated);
   const deleteAll        = useSmsTransactionsStore(s => s.deleteAllAutoCreated);
   const loadAutoCreated  = useSmsTransactionsStore(s => s.loadAutoCreated);
+  const snoozed          = useSmsTransactionsStore(s => s.snoozed);
+  const snoozeReview     = useSmsTransactionsStore(s => s.snoozeReview);
   const loadTransactions = useTransactionsStore(s => s.loadFromDB);
   const { accounts }     = useAccountsStore();
   const { incomeCategories, expenseCategories } = useCategoriesStore();
@@ -61,7 +63,7 @@ function AutoCreatedReviewModal() {
   const [edits, setEdits]           = useState<Record<string, CardEdit>>({});
   const [saving, setSaving]         = useState(false);
 
-  if (autoCreated.length === 0) return null;
+  if (autoCreated.length === 0 || snoozed) return null;
 
   const activeAccounts = accounts.filter(a => a.is_archived === 0);
 
@@ -307,6 +309,14 @@ function AutoCreatedReviewModal() {
                 Tap a transaction to edit details.
               </Text>
             </View>
+            <TouchableOpacity
+              style={styles.laterBtn}
+              onPress={snoozeReview}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[styles.laterBtnText, { color: ds.text.muted }]}>Later</Text>
+            </TouchableOpacity>
           </View>
 
           {/* List */}
@@ -373,6 +383,8 @@ function makeModalStyles() {
     headerText:  { flex: 1 },
     headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 16 },
     headerSub:   { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 2 },
+    laterBtn:     { paddingHorizontal: 4, paddingVertical: 4 },
+    laterBtnText: { fontFamily: 'Inter_500Medium', fontSize: 14 },
     list:        { maxHeight: SCREEN_HEIGHT * 0.6 },
     listContent: { paddingHorizontal: 16, paddingBottom: 8 },
 

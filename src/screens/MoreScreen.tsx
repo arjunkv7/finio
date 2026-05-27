@@ -271,7 +271,7 @@ export default function MoreScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader />
+      <BrandHeader right={null} />
 
       <ScrollView
         style={styles.scroll}
