@@ -14,12 +14,12 @@ import {
 } from '@expo-google-fonts/inter';
 import { DS } from './src/constants';
 import RootNavigator from './src/navigation/RootNavigator';
-import { getDb, getSettings } from './src/db/database';
+import { getDb } from './src/db/database';
 import { useSettingsStore } from './src/store/settingsStore';
 import { useRecurringStore } from './src/store/recurringStore';
 import { useTransactionsStore } from './src/store/transactionsStore';
 import { useSmsTransactionsStore } from './src/store/smsTransactionsStore';
-import { initialInboxScan } from './src/services/smsService';
+import { initialInboxScan, checkSmsPermission, requestSmsPermission } from './src/services/smsService';
 
 const darkNavTheme = {
   ...DarkTheme,
@@ -75,6 +75,8 @@ function SmsProcessor() {
 
   const run = async () => {
     if (!smsAutoDetect) return;
+    const hasPerm = await checkSmsPermission();
+    if (!hasPerm) await requestSmsPermission();
     // One-time inbox scan (no-ops if already done — BroadcastReceiver handles new SMS)
     await initialInboxScan();
     await Promise.all([loadPending(), loadAutoCreated()]);
@@ -114,10 +116,9 @@ function RecurringProcessor() {
 }
 
 export default function App() {
-  const [dbReady, setDbReady]   = useState(false);
-  const setSettings             = useSettingsStore(s => s.setSettings);
-  const markLoaded              = useSettingsStore(s => s.markLoaded);
-  const theme                   = useSettingsStore(s => s.theme);
+  const [dbReady, setDbReady] = useState(false);
+  const loadSettings          = useSettingsStore(s => s.loadFromDB);
+  const theme                 = useSettingsStore(s => s.theme);
 
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -128,18 +129,8 @@ export default function App() {
 
   useEffect(() => {
     getDb()
-      .then(async () => {
-        const row = await getSettings();
-        if (row) {
-          setSettings({
-            currencyCode: row.currency_code,
-            currencySymbol: row.currency_symbol,
-            theme: row.theme as 'light' | 'dark' | 'system',
-          });
-        }
-        markLoaded();
-        setDbReady(true);
-      })
+      .then(() => loadSettings())
+      .then(() => setDbReady(true))
       .catch(err => {
         console.error('[Finio] DB init error:', err);
         setDbReady(true);

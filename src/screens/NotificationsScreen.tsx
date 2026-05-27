@@ -4,13 +4,11 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useDS } from '../hooks/useDS';
-import BrandHeader from '../components/BrandHeader';
+import PageHeader from '../components/PageHeader';
 import {
   getAllNotifications,
   markAllNotificationsRead,
@@ -38,7 +36,6 @@ function timeAgo(iso: string): string {
 export default function NotificationsScreen() {
   const ds         = useDS();
   const navigation = useNavigation<any>();
-  const insets     = useSafeAreaInsets();
   const [items, setItems] = useState<AppNotification[]>([]);
 
   const load = useCallback(async () => {
@@ -73,17 +70,13 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: ds.surface.screen }]}>
-      <BrandHeader onBack={() => navigation.goBack()} />
-      <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: ds.text.primary }]}>Notifications</Text>
-      </View>
+      <PageHeader title="Notifications" onBack={() => navigation.goBack()} />
       <FlatList
         data={items}
         keyExtractor={i => i.id}
         renderItem={renderItem}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + 24 },
           items.length === 0 && styles.listEmpty,
         ]}
         ListEmptyComponent={
@@ -100,8 +93,6 @@ export default function NotificationsScreen() {
 function makeStyles(ds: any) {
   return StyleSheet.create({
     root:       { flex: 1 },
-    titleRow:   { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-    title:      { fontFamily: 'Inter_700Bold', fontSize: 22 },
     list:       { paddingHorizontal: 16, paddingTop: 8 },
     listEmpty:  { flex: 1 },
     row: {

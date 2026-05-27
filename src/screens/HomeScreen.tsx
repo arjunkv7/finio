@@ -185,11 +185,12 @@ export default function HomeScreen() {
   const [privacyHidden, setPrivacyHidden]   = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [unreadCount, setUnreadCount]       = useState(0);
+  const [refreshing, setRefreshing]         = useState(false);
 
   const { totalBalance, loadFromDB: loadAccounts }         = useAccountsStore();
   const { getCategoryById, loadFromDB: loadCategories }    = useCategoriesStore();
   const {
-    transactions, monthlySummary, activeMonth, isLoading,
+    transactions, monthlySummary, activeMonth,
     loadFromDB: loadTransactions, setActiveMonth,
   } = useTransactionsStore();
 
@@ -198,6 +199,12 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     await Promise.all([loadAccounts(), loadCategories(), loadTransactions()]);
   }, [loadAccounts, loadCategories, loadTransactions]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => {
     load();
@@ -256,8 +263,8 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={load}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             tintColor={ds.primary}
             colors={[ds.primary]}
           />

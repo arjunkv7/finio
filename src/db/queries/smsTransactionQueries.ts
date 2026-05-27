@@ -185,6 +185,13 @@ export async function markAllAutoCreatedAsApproved(): Promise<void> {
   );
 }
 
+export async function approveSingleAutoCreatedSmsTransaction(smsId: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE sms_transactions SET status = 'approved' WHERE id = ?", [smsId]
+  );
+}
+
 export async function deleteAutoCreatedSmsTransaction(smsId: string): Promise<void> {
   const db = await getDb();
   const sms = await db.getFirstAsync<{ transaction_id: string | null }>(
@@ -200,6 +207,23 @@ export async function deleteAutoCreatedSmsTransaction(smsId: string): Promise<vo
   await db.runAsync(
     "UPDATE sms_transactions SET status = 'dismissed' WHERE id = ?", [smsId]
   );
+}
+
+export async function deleteAllAutoCreatedSmsTransactions(): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; transaction_id: string | null }>(
+    "SELECT id, transaction_id FROM sms_transactions WHERE status = 'auto_created'"
+  );
+  const ts = new Date().toISOString();
+  for (const row of rows) {
+    if (row.transaction_id) {
+      await db.runAsync(
+        'UPDATE transactions SET is_deleted = 1, updated_at = ? WHERE id = ?',
+        [ts, row.transaction_id]
+      );
+    }
+  }
+  await db.runAsync("UPDATE sms_transactions SET status = 'dismissed' WHERE status = 'auto_created'");
 }
 
 export async function getLastSmsProcessedAt(): Promise<string | null> {

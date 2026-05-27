@@ -11,9 +11,13 @@ const DEBIT_RES: RegExp[] = [
   /(?:debited|deducted)\s+(?:with\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:txn|transaction)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:purchase|payment|paid)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-  /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:spent|deducted|charged)/i,
+  /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:spent|deducted|charged|sent)/i,
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:withdrawn|withdrawal)/i,
   /(?:withdrawn|withdrawal)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  // "spent ₹X on …" / "sent ₹X to …"
+  /(?:spent|send|sent)\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  // "charged ₹X" (amount after keyword)
+  /charged\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
 ];
 
 // Credit / income patterns
@@ -51,6 +55,13 @@ function extractDescription(body: string): string | null {
     if (!/^[xX*\d]+$/.test(desc)) return desc;
   }
 
+  // "spent/sent … on/at MERCHANT"
+  m = body.match(/\bon\s+([A-Za-z][A-Za-z0-9\s&._-]{2,30})(?:\s+(?:via|ref|upi)|[.,]|$)/i);
+  if (m?.[1]) {
+    const desc = m[1].trim().replace(/\s+/g, ' ');
+    if (!/^[xX*\d]+$/.test(desc)) return desc;
+  }
+
   // POS merchant: "at MERCHANT NAME"
   m = body.match(/\bat\s+([A-Za-z][A-Za-z0-9\s&._-]{2,30})(?:\s+(?:on|via|ref|upi)|[.,]|$)/i);
   if (m?.[1]) {
@@ -72,7 +83,7 @@ export function parseSms(address: string, body: string): ParsedSmsTransaction | 
   // Must contain a currency amount
   if (!/(?:rs\.?|inr|₹)\s*[0-9]/i.test(body)) return null;
   // Must have a financial keyword
-  if (!/(?:debited?|credited?|paid|payment|txn|transaction|transfer|withdrawn|received|refund|cashback)/i.test(body)) return null;
+  if (!/(?:debited?|credited?|paid|payment|txn|transaction|transfer|withdrawn|received|refund|cashback|sent|spent|charged)/i.test(body)) return null;
 
   const debitAmount = extractAmount(body, DEBIT_RES);
   if (debitAmount !== null) {

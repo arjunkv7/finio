@@ -9,7 +9,6 @@ import {
 } from '../db/queries/smsTransactionQueries';
 import { getDb } from '../db/database';
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Stable fingerprint used by BOTH the broadcast path (HeadlessJS) and the
 // one-time inbox scan, so the same SMS is never queued twice.
@@ -21,16 +20,17 @@ export function smsFingerprint(sender: string, body: string, timestampMs: number
 export async function requestSmsPermission(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   try {
-    const result = await PermissionsAndroid.request(
+    // Both READ_SMS (inbox scan) and RECEIVE_SMS (BroadcastReceiver) are needed.
+    // On Android 6–12 they share a permission group so one grant covers both;
+    // on Android 13+ they must be requested explicitly.
+    const results = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.READ_SMS,
-      {
-        title: 'SMS Permission',
-        message: 'Finio needs SMS access to automatically detect bank transactions and add them for you.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Deny',
-      }
+      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+    ]);
+    return (
+      results[PermissionsAndroid.PERMISSIONS.READ_SMS]    === PermissionsAndroid.RESULTS.GRANTED &&
+      results[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED
     );
-    return result === PermissionsAndroid.RESULTS.GRANTED;
   } catch {
     return false;
   }
@@ -38,7 +38,11 @@ export async function requestSmsPermission(): Promise<boolean> {
 
 export async function checkSmsPermission(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
-  return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
+  const [read, receive] = await Promise.all([
+    PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
+    PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
+  ]);
+  return read && receive;
 }
 
 function listSmsAsync(filter: object): Promise<string> {
@@ -69,7 +73,8 @@ export async function initialInboxScan(): Promise<number> {
   const lastProcessedAt = await getLastSmsProcessedAt();
   if (lastProcessedAt) return 0;
 
-  const minDate = Date.now() - THIRTY_DAYS_MS;
+  const now = new Date();
+  const minDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   // Collect fingerprints already in the DB to avoid re-inserting anything the
   // broadcast receiver may have already caught

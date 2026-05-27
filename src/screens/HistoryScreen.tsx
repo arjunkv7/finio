@@ -165,8 +165,9 @@ export default function HistoryScreen() {
 
   const [items,          setItems]          = useState<Transaction[]>([]);
   const [hasMore,        setHasMore]        = useState(false);
-  const [isLoading,      setIsLoading]      = useState(false);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [isLoading,        setIsLoading]        = useState(false);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [isFetchingMore,   setIsFetchingMore]   = useState(false);
   const [monthSummary,   setMonthSummary]   = useState({ income: 0, expenses: 0, net: 0 });
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
@@ -176,6 +177,16 @@ export default function HistoryScreen() {
   const filterRef         = useRef<TransactionFilter>({});
   const itemCountRef      = useRef(0);
 
+  // Refs so useFocusEffect can read current filter values without them as deps
+  const yearRef       = useRef(year);
+  const monthRef      = useRef(month);
+  const typeFilterRef = useRef(typeFilter);
+  const debSearchRef  = useRef(debSearch);
+  useEffect(() => { yearRef.current       = year;       }, [year]);
+  useEffect(() => { monthRef.current      = month;      }, [month]);
+  useEffect(() => { typeFilterRef.current = typeFilter; }, [typeFilter]);
+  useEffect(() => { debSearchRef.current  = debSearch;  }, [debSearch]);
+
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { itemCountRef.current = items.length; }, [items]);
 
@@ -183,10 +194,11 @@ export default function HistoryScreen() {
 
   useEffect(() => { loadCats(); loadAccounts(); }, [loadCats, loadAccounts]);
 
-  // Reload list when returning from AddTransaction (new/edited tx)
+  // Reload list silently when screen regains focus (e.g. back from AddTransaction)
+  // Uses refs so filter changes don't re-trigger this
   useFocusEffect(useCallback(() => {
-    triggerLoad(year, month, typeFilter, debSearch);
-  }, [year, month, typeFilter, debSearch]));
+    triggerLoad(yearRef.current, monthRef.current, typeFilterRef.current, debSearchRef.current, false);
+  }, []));
 
   // ── Search debounce ───────────────────────────────────────────────────────
 
@@ -195,22 +207,26 @@ export default function HistoryScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // ── Load when any filter changes ──────────────────────────────────────────
+  // ── Load when any filter changes (silent, no full-screen spinner) ─────────
+
+  const prevMonthRef = useRef<string>(`${year}-${month}`);
 
   useEffect(() => {
-    triggerLoad(year, month, typeFilter, debSearch);
+    const monthKey = `${year}-${month}`;
+    const monthChanged = prevMonthRef.current !== monthKey;
+    prevMonthRef.current = monthKey;
+    triggerLoad(year, month, typeFilter, debSearch, monthChanged);
   }, [year, month, typeFilter, debSearch]);
 
   // ── Load helpers ──────────────────────────────────────────────────────────
 
   const triggerLoad = useCallback(async (
-    y: number, mo: number, tf: TypeFilter, s: string
+    y: number, mo: number, tf: TypeFilter, s: string, clearFirst = false
   ) => {
     const f = buildFilter(y, mo, tf, s);
     filterRef.current = f;
     setIsLoading(true);
-    setItems([]);
-    setHasMore(false);
+    if (clearFirst) { setItems([]); setHasMore(false); }
     try {
       const [txs, summary] = await Promise.all([
         getTransactionsPaginated(f, PAGE_SIZE, 0),
@@ -317,21 +333,19 @@ export default function HistoryScreen() {
 
   // ── Header component (summary + search + chips) ──────────────────────────
 
-  const ListHeader = (
+  const ListHeader = useMemo(() => (
     <View style={styles.listHeader}>
       {/* Monthly summary */}
-      {!isLoading && (
-        <SummaryBar
-          income={monthSummary.income}
-          expenses={monthSummary.expenses}
-          net={monthSummary.net}
-          year={year}
-          month={month}
-          currencySymbol={currencySymbol}
-          ds={ds}
-          styles={styles}
-        />
-      )}
+      <SummaryBar
+        income={monthSummary.income}
+        expenses={monthSummary.expenses}
+        net={monthSummary.net}
+        year={year}
+        month={month}
+        currencySymbol={currencySymbol}
+        ds={ds}
+        styles={styles}
+      />
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -383,12 +397,14 @@ export default function HistoryScreen() {
           );
         })}
       </ScrollView>
+
     </View>
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [isLoading, items.length, monthSummary, year, month, currencySymbol, search, typeFilter, ds, styles]);
 
   // ── Footer component (summary + load more) ────────────────────────────────
 
-  const ListFooter = (
+  const ListFooter = useMemo(() => (
     <View>
       {isFetchingMore && (
         <View style={styles.loadingMore}>
@@ -397,11 +413,11 @@ export default function HistoryScreen() {
       )}
       <View style={{ height: insets.bottom + 80 }} />
     </View>
-  );
+  ), [isFetchingMore, insets.bottom, ds.primary, styles]);
 
   // ── Empty component ───────────────────────────────────────────────────────
 
-  const ListEmpty = !isLoading ? (
+  const ListEmpty = useMemo(() => !isLoading ? (
     <EmptyState
       icon={search ? 'text-search' : 'receipt-text-outline'}
       title={search ? 'No results found' : 'No transactions'}
@@ -415,7 +431,7 @@ export default function HistoryScreen() {
     <View style={styles.loadingCenter}>
       <ActivityIndicator size="large" color={ds.primary} />
     </View>
-  );
+  ), [isLoading, search, typeFilter, month, year, styles, ds]);
 
   // ── Screen ────────────────────────────────────────────────────────────────
 
@@ -447,8 +463,12 @@ export default function HistoryScreen() {
         onEndReachedThreshold={0.25}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={() => triggerLoad(year, month, typeFilter, debSearch)}
+            refreshing={isPullRefreshing}
+            onRefresh={async () => {
+              setIsPullRefreshing(true);
+              await triggerLoad(year, month, typeFilter, debSearch, true);
+              setIsPullRefreshing(false);
+            }}
             tintColor={ds.primary}
             colors={[ds.primary]}
           />

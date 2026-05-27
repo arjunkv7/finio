@@ -10,6 +10,7 @@ import {
   getAutoCreatedEntries,
   markAllAutoCreatedAsApproved,
   deleteAutoCreatedSmsTransaction,
+  deleteAllAutoCreatedSmsTransactions,
   AutoCreatedEntry,
 } from '../db/queries/smsTransactionQueries';
 import { createNotification } from '../db/queries/notificationQueries';
@@ -30,6 +31,7 @@ interface SmsTransactionsState {
   loadAutoCreated: () => Promise<void>;
   acceptAllAutoCreated: () => Promise<void>;
   deleteAutoCreated: (smsId: string) => Promise<void>;
+  deleteAllAutoCreated: () => Promise<void>;
 }
 
 export const useSmsTransactionsStore = create<SmsTransactionsState>((set, get) => ({
@@ -94,6 +96,11 @@ export const useSmsTransactionsStore = create<SmsTransactionsState>((set, get) =
   deleteAutoCreated: async (smsId) => {
     await deleteAutoCreatedSmsTransaction(smsId);
     set(s => ({ autoCreated: s.autoCreated.filter(e => e.sms_id !== smsId) }));
+  },
+
+  deleteAllAutoCreated: async () => {
+    await deleteAllAutoCreatedSmsTransactions();
+    set({ autoCreated: [] });
   },
 }));
 
