@@ -430,7 +430,7 @@ export default function ReportsScreen() {
             <Text style={styles.monthBtnText}>{MONTH_ABBR[month - 1]} {year}</Text>
             <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
           </TouchableOpacity>
-        ) : undefined}
+        ) : null}
       />
 
       {/* Sub-tab pills */}
