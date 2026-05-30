@@ -182,7 +182,7 @@ export default function HomeScreen() {
   const styles         = useMemo(() => makeStyles(ds), [ds]);
   const navigation     = useNavigation<any>();
   const insets         = useSafeAreaInsets();
-  const { currencySymbol, privacyHidden, saveToDb } = useSettingsStore();
+  const { currencySymbol, privacyHidden, saveToDb, smsAutoDetect } = useSettingsStore();
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [unreadCount, setUnreadCount]       = useState(0);
   const [refreshing, setRefreshing]         = useState(false);
@@ -213,9 +213,9 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     load();
-    loadAutoCreated();
+    if (smsAutoDetect) loadAutoCreated();
     getUnreadNotificationsCount().then(setUnreadCount);
-  }, [load, loadAutoCreated]));
+  }, [load, loadAutoCreated, smsAutoDetect]));
 
   React.useEffect(() => {
     return navigation.addListener('tabPress' as any, () => {
@@ -278,7 +278,7 @@ export default function HomeScreen() {
       >
 
         {/* ── Auto-transaction review banner ── */}
-        {autoCreatedCount > 0 && snoozed && (
+        {smsAutoDetect === 1 && autoCreatedCount > 0 && snoozed && (
           <TouchableOpacity
             style={styles.reviewBanner}
             onPress={unsnoozeReview}

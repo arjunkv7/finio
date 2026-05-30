@@ -34,6 +34,7 @@ import { useSmsTransactionsStore } from '../store/smsTransactionsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { AutoCreatedEntry, approveSingleAutoCreatedSmsTransaction } from '../db/queries/smsTransactionQueries';
 import { getDb } from '../db/database';
 import { useDS } from '../hooks/useDS';
@@ -52,6 +53,7 @@ interface CardEdit {
 
 function AutoCreatedReviewModal() {
   const ds               = useDS();
+  const smsAutoDetect    = useSettingsStore(s => s.smsAutoDetect);
   const autoCreated      = useSmsTransactionsStore(s => s.autoCreated);
   const acceptAll        = useSmsTransactionsStore(s => s.acceptAllAutoCreated);
   const deleteEntry      = useSmsTransactionsStore(s => s.deleteAutoCreated);
@@ -85,7 +87,7 @@ function AutoCreatedReviewModal() {
       }
     });
 
-  if (autoCreated.length === 0 || snoozed) return null;
+  if (!smsAutoDetect || autoCreated.length === 0 || snoozed) return null;
 
   const activeAccounts = accounts.filter(a => a.is_archived === 0);
 

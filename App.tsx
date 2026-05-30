@@ -68,12 +68,17 @@ const lightPaperTheme = {
   },
 };
 
-function NotificationSetup() {
+// Requests notification then SMS permissions sequentially so the two system
+// dialogs never appear at the same time (Android only shows one at a time).
+function PermissionsSetup() {
+  const loadPending     = useSmsTransactionsStore(s => s.loadPending);
+  const loadAutoCreated = useSmsTransactionsStore(s => s.loadAutoCreated);
+
   useEffect(() => {
     (async () => {
+      // 1. Notification permission — must finish before SMS to avoid dialog conflict
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') return;
-      if (Platform.OS === 'android') {
+      if (status === 'granted' && Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('transactions', {
           name: 'Auto-detected Transactions',
           importance: Notifications.AndroidImportance.HIGH,
@@ -81,31 +86,42 @@ function NotificationSetup() {
           showBadge: false,
         });
       }
+
+      if (Platform.OS !== 'android') return;
+
+      // 2. SMS permission — read from store directly to avoid stale closure
+      const { smsAutoDetect, saveToDb } = useSettingsStore.getState();
+      if (smsAutoDetect === 0) return; // user previously disabled — skip
+
+      const hasPerm = await checkSmsPermission();
+      if (!hasPerm) {
+        const granted = await requestSmsPermission();
+        if (!granted) {
+          await saveToDb({ smsAutoDetect: 0 });
+          return;
+        }
+      }
+
+      // 3. Initial inbox scan (no-op if already done on a previous launch)
+      await initialInboxScan();
+      await Promise.all([loadPending(), loadAutoCreated()]);
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }
 
+// Handles foreground refresh only — permission management is in PermissionsSetup.
 function SmsProcessor() {
-  const smsAutoDetect  = useSettingsStore(s => s.smsAutoDetect);
-  const loadPending    = useSmsTransactionsStore(s => s.loadPending);
+  const smsAutoDetect   = useSettingsStore(s => s.smsAutoDetect);
+  const loadPending     = useSmsTransactionsStore(s => s.loadPending);
   const loadAutoCreated = useSmsTransactionsStore(s => s.loadAutoCreated);
-  const didRun         = useRef(false);
-
-  const run = async () => {
-    if (!smsAutoDetect) return;
-    const hasPerm = await checkSmsPermission();
-    if (!hasPerm) await requestSmsPermission();
-    // One-time inbox scan (no-ops if already done — BroadcastReceiver handles new SMS)
-    await initialInboxScan();
-    await Promise.all([loadPending(), loadAutoCreated()]);
-  };
 
   useEffect(() => {
-    if (!didRun.current) { didRun.current = true; run(); }
-    // Refresh on foreground — BroadcastReceiver may have auto-created new transactions
-    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active') Promise.all([loadPending(), loadAutoCreated()]);
+    const sub = AppState.addEventListener('change', async (state: AppStateStatus) => {
+      if (state !== 'active' || !smsAutoDetect) return;
+      const hasPerm = await checkSmsPermission();
+      if (hasPerm) await Promise.all([loadPending(), loadAutoCreated()]);
     });
     return () => sub.remove();
   }, [smsAutoDetect]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -174,7 +190,7 @@ export default function App() {
         <PaperProvider theme={paperTheme}>
           <NavigationContainer theme={navTheme}>
             <StatusBar style={isDark ? 'light' : 'dark'} />
-            <NotificationSetup />
+            <PermissionsSetup />
             <RecurringProcessor />
             <SmsProcessor />
             <RootNavigator />

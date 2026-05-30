@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  Platform,
   RefreshControl,
   Animated,
 } from 'react-native';
@@ -23,6 +24,7 @@ import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSettingsStore } from '../store/settingsStore';
+import { requestSmsPermission, initialInboxScan } from '../services/smsService';
 import { useSmsTransactionsStore } from '../store/smsTransactionsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
@@ -747,7 +749,8 @@ export default function SettingsScreen() {
   const styles = useMemo(() => makeStyles(ds), [ds]);
 
   const { currencyCode, currencySymbol, theme, pinEnabled, driveConnected, lastBackupAt, smsAutoDetect, saveToDb, loadFromDB } = useSettingsStore();
-  const { pendingCount, loadPending } = useSmsTransactionsStore();
+  const loadPending     = useSmsTransactionsStore(s => s.loadPending);
+  const loadAutoCreated = useSmsTransactionsStore(s => s.loadAutoCreated);
   const { loadFromDB: loadCategories } = useCategoriesStore();
   const loadAccounts     = useAccountsStore(s => s.loadFromDB);
   const loadTransactions = useTransactionsStore(s => s.loadFromDB);
@@ -760,7 +763,27 @@ export default function SettingsScreen() {
   const [showPINModal,    setShowPINModal]    = useState(false);
   const [clearing,        setClearing]        = useState(false);
 
-  useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); loadPending(); }, [loadFromDB, loadCategories, loadPending]));
+  useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); }, [loadFromDB, loadCategories]));
+
+  const handleSmsToggle = async (enabled: boolean) => {
+    if (!enabled) {
+      await saveToDb({ smsAutoDetect: 0 });
+      return;
+    }
+    if (Platform.OS !== 'android') return;
+    const granted = await requestSmsPermission();
+    if (granted) {
+      await saveToDb({ smsAutoDetect: 1 });
+      // Scan inbox and load data now that the feature is enabled
+      await initialInboxScan();
+      await Promise.all([loadPending(), loadAutoCreated()]);
+    } else {
+      Alert.alert(
+        'Permission Required',
+        'SMS permission was not granted. Please allow it in your device settings to enable SMS transaction detection.',
+      );
+    }
+  };
 
   if (view === 'categories') {
     return <ManageCategoriesView onBack={() => setView('main')} />;
@@ -959,22 +982,12 @@ export default function SettingsScreen() {
             right={
               <Switch
                 value={smsAutoDetect === 1}
-                onValueChange={v => saveToDb({ smsAutoDetect: v ? 1 : 0 })}
+                onValueChange={handleSmsToggle}
                 trackColor={{ true: ds.primary, false: ds.surface.elevated }}
                 thumbColor={smsAutoDetect === 1 ? ds.primaryLight : ds.text.muted}
               />
             }
           />
-          {smsAutoDetect === 1 && (
-            <>
-              <View style={styles.rowDivider} />
-              <SettingsRow
-                icon="inbox-arrow-down-outline"
-                label={pendingCount > 0 ? `Review Detected (${pendingCount})` : 'Review Detected'}
-                onPress={() => navigation.navigate('SmsTransactions')}
-              />
-            </>
-          )}
         </AppCard>
 
         {/* ── DATA ── */}
