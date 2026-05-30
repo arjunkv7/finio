@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PageHeader from '../components/PageHeader';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
@@ -38,6 +42,9 @@ import { clearAllUserData, ensureDefaultAccounts, updateSettings } from '../db/d
 import { Category, CategoryType } from '../types/db';
 import AppCard from '../components/AppCard';
 import BottomSheet from '../components/BottomSheet';
+import { GOOGLE_ANDROID_CLIENT_ID, DRIVE_SCOPE } from '../config/google';
+import { saveAccessToken, getStoredToken, clearStoredToken, uploadBackup, downloadBackup } from '../services/driveService';
+import { exportAllData, importBackupData } from '../services/backupService';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -793,6 +800,30 @@ export default function SettingsScreen() {
   const [showTheme,       setShowTheme]       = useState(false);
   const [showPINModal,    setShowPINModal]    = useState(false);
   const [clearing,        setClearing]        = useState(false);
+  const [backing,         setBacking]         = useState(false);
+  const [restoring,       setRestoring]       = useState(false);
+
+  // ── Google Drive OAuth ───────────────────────────────────────────────────────
+  const [, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    scopes: [DRIVE_SCOPE],
+  });
+
+  useEffect(() => {
+    if (response?.type !== 'success') return;
+    const accessToken: string | undefined = (response as any).authentication?.accessToken;
+    const expiresIn: number = (response as any).authentication?.expiresIn ?? 3600;
+    if (!accessToken) return;
+    (async () => {
+      try {
+        await saveAccessToken(accessToken, expiresIn);
+        await saveToDb({ driveConnected: 1 });
+      } catch {
+        Alert.alert('Error', 'Could not save Google credentials.');
+      }
+    })();
+  }, [response]);
+
   useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); }, [loadFromDB, loadCategories]));
 
   const handleSmsToggle = async (enabled: boolean) => {
@@ -855,6 +886,112 @@ export default function SettingsScreen() {
 
   const handleBiometricToggle = async (enabled: boolean) => {
     await saveToDb({ biometricEnabled: enabled ? 1 : 0 });
+  };
+
+  const handleDriveToggle = async (connect: boolean) => {
+    if (connect) {
+      if (GOOGLE_ANDROID_CLIENT_ID === 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com') {
+        Alert.alert(
+          'Setup Required',
+          'Add your Google OAuth Client ID to src/config/google.ts before connecting.'
+        );
+        return;
+      }
+      promptAsync();
+    } else {
+      Alert.alert(
+        'Disconnect Google Drive?',
+        'Your local data is not affected. You can reconnect any time.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disconnect',
+            style: 'destructive',
+            onPress: async () => {
+              await clearStoredToken();
+              await saveToDb({ driveConnected: 0 });
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const handleBackupNow = async () => {
+    const token = await getStoredToken();
+    if (!token) {
+      Alert.alert(
+        'Session Expired',
+        'Your Google session has expired. Please reconnect Google Drive.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Reconnect', onPress: () => promptAsync() },
+        ]
+      );
+      return;
+    }
+    setBacking(true);
+    try {
+      const json = await exportAllData();
+      await uploadBackup(json, token);
+      const now = new Date().toISOString();
+      await saveToDb({ lastBackupAt: now });
+      Alert.alert('Backup Complete', 'Your data has been backed up to Google Drive.');
+    } catch (err: any) {
+      Alert.alert('Backup Failed', err?.message ?? 'An unknown error occurred.');
+    } finally {
+      setBacking(false);
+    }
+  };
+
+  const handleRestoreFromDrive = async () => {
+    const token = await getStoredToken();
+    if (!token) {
+      Alert.alert(
+        'Session Expired',
+        'Your Google session has expired. Please reconnect Google Drive.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Reconnect', onPress: () => promptAsync() },
+        ]
+      );
+      return;
+    }
+    Alert.alert(
+      'Restore from Google Drive?',
+      'This will replace ALL current data with your Drive backup. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: async () => {
+            setRestoring(true);
+            try {
+              const json = await downloadBackup(token);
+              if (!json) {
+                Alert.alert('No Backup Found', 'No backup file (finio_backup.json) was found in your Google Drive.');
+                return;
+              }
+              await importBackupData(json);
+              const now = new Date();
+              await Promise.all([
+                loadAccounts(), loadTransactions(),
+                loadSavings(), loadInvestments(), loadCategories(),
+                loadBudgets(now.getFullYear(), now.getMonth() + 1),
+                loadTrips(), loadRecurring(),
+                loadPending(), loadAutoCreated(),
+              ]);
+              Alert.alert('Restore Complete', 'Your data has been restored from Google Drive.');
+            } catch (err: any) {
+              Alert.alert('Restore Failed', err?.message ?? 'An unknown error occurred.');
+            } finally {
+              setRestoring(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleClearData = () => {
@@ -963,9 +1100,7 @@ export default function SettingsScreen() {
             right={
               <Switch
                 value={driveConnected === 1}
-                onValueChange={() =>
-                  Alert.alert('Coming in Phase 3', 'Google Drive sync will be available soon.')
-                }
+                onValueChange={handleDriveToggle}
                 trackColor={{ true: ds.primary, false: ds.surface.elevated }}
                 thumbColor={driveConnected === 1 ? ds.primaryLight : ds.text.muted}
               />
@@ -975,7 +1110,19 @@ export default function SettingsScreen() {
             <>
               <View style={styles.rowDivider} />
               <SettingsRow
-                icon="backup-restore"
+                icon="cloud-upload-outline"
+                label={backing ? 'Backing up…' : 'Backup Now'}
+                onPress={backing ? undefined : handleBackupNow}
+              />
+              <View style={styles.rowDivider} />
+              <SettingsRow
+                icon="cloud-download-outline"
+                label={restoring ? 'Restoring…' : 'Restore from Drive'}
+                onPress={restoring ? undefined : handleRestoreFromDrive}
+              />
+              <View style={styles.rowDivider} />
+              <SettingsRow
+                icon="history"
                 label="Last Backup"
                 value={formatBackupDate(lastBackupAt)}
               />
