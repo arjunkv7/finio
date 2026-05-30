@@ -9,6 +9,7 @@ import {
   Pressable,
   Platform,
   Keyboard,
+  LayoutAnimation,
   ScrollView,
   type ScrollViewProps,
 } from 'react-native';
@@ -17,7 +18,6 @@ import { DS_DARK, DSType } from '../constants/colors';
 import { Typography } from '../constants';
 import { useDS } from '../hooks/useDS';
 
-// Consumers use this to cap their ScrollView height to the visible viewport above the keyboard.
 export const BottomSheetKeyboardContext = createContext(0);
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -40,7 +40,6 @@ function makeStyles(ds: DSType) {
       bottom: 0,
       left: 0,
       right: 0,
-      zIndex: 1,
       backgroundColor: ds.surface.card,
       borderTopLeftRadius: ds.radius.xl,
       borderTopRightRadius: ds.radius.xl,
@@ -85,7 +84,6 @@ export default function BottomSheet({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
-  const sheetHeightRef = useRef(0);
   const [kbHeight, setKbHeight] = useState(0);
 
   useEffect(() => {
@@ -122,32 +120,42 @@ export default function BottomSheet({
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
     const onShow = Keyboard.addListener(showEvent, (e) => {
       const kbH = e.endCoordinates.height;
+      const dur = Platform.OS === 'ios' ? e.duration : 180;
+      // Animate the ScrollView maxHeight change in sync with the keyboard so
+      // the sheet doesn't jump — only the scroll area shrinks, smoothly.
+      LayoutAnimation.configureNext({ duration: dur, update: { type: 'easeInEaseOut' } });
       setKbHeight(kbH);
-      // Clamp so the sheet never rises above the safe area top.
-      const maxUp = SCREEN_HEIGHT - sheetHeightRef.current - insets.top;
-      const toValue = -Math.min(kbH, Math.max(0, maxUp));
       Animated.timing(keyboardOffset, {
-        toValue,
-        duration: Platform.OS === 'ios' ? e.duration : 180,
+        toValue: -kbH,
+        duration: dur,
         useNativeDriver: true,
       }).start();
     });
+
     const onHide = Keyboard.addListener(hideEvent, (e) => {
+      const dur = Platform.OS === 'ios' ? (e.duration || 250) : 180;
+      LayoutAnimation.configureNext({ duration: dur, update: { type: 'easeInEaseOut' } });
       setKbHeight(0);
       Animated.timing(keyboardOffset, {
         toValue: 0,
-        duration: Platform.OS === 'ios' ? (e.duration || 250) : 180,
+        duration: dur,
         useNativeDriver: true,
       }).start();
     });
+
     return () => { onShow.remove(); onHide.remove(); };
-  }, [keyboardOffset, insets.top]);
+  }, [keyboardOffset]);
 
   useEffect(() => {
     if (!visible) { keyboardOffset.setValue(0); setKbHeight(0); }
   }, [visible, keyboardOffset]);
+
+  // Constant cap — prevents sheet from ever overflowing above the safe area.
+  // Does NOT depend on kbHeight so the sheet never resizes when the keyboard appears.
+  const maxSheetHeight = SCREEN_HEIGHT - insets.top - 8;
 
   return (
     <Modal
@@ -157,17 +165,19 @@ export default function BottomSheet({
       animationType="none"
       onRequestClose={onClose}
     >
-      {/* Backdrop */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} pointerEvents="none" />
       </Pressable>
 
-      {/* Sheet */}
       <Animated.View
-        onLayout={(e) => { sheetHeightRef.current = e.nativeEvent.layout.height; }}
-        style={[styles.sheet, { transform: [{ translateY: Animated.add(translateY, keyboardOffset) }] }]}
+        style={[
+          styles.sheet,
+          {
+            maxHeight: maxSheetHeight,
+            transform: [{ translateY: Animated.add(translateY, keyboardOffset) }],
+          },
+        ]}
       >
-        {/* Drag handle */}
         <View style={styles.handle} />
 
         {title != null && (
@@ -187,10 +197,10 @@ export default function BottomSheet({
 export function BottomSheetScrollView({ style, ...props }: ScrollViewProps) {
   const kbHeight = useContext(BottomSheetKeyboardContext);
   const insets = useSafeAreaInsets();
-  // Cap the scroll area to the visible viewport above the keyboard so the
-  // topmost item can't scroll off the top of the screen.
+  // Cap the scrollable area so it fits inside the raised sheet.
+  // 130 ≈ handle + header + sheet paddingBottom.
   const maxHeight = kbHeight > 0
-    ? SCREEN_HEIGHT - kbHeight - insets.top - 100
+    ? SCREEN_HEIGHT - kbHeight - insets.top - 130
     : undefined;
   return (
     <ScrollView

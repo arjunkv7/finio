@@ -678,7 +678,7 @@ function InvestmentDetailView({
         onClose={() => { setShowAdd(false); resetForm(); }}
         title="Add SIP Contribution"
       >
-        <ScrollView contentContainerStyle={s.sheetContent} keyboardShouldPersistTaps="handled">
+        <BottomSheetScrollView contentContainerStyle={s.sheetContent} keyboardShouldPersistTaps="handled">
           <Text style={s.fieldLabel}>Amount *</Text>
           <View style={s.inputRow}>
             <Text style={s.currencyPrefix}>{currencySymbol}</Text>
@@ -754,7 +754,7 @@ function InvestmentDetailView({
           >
             <Text style={s.ctaText}>{saving ? 'Saving…' : isRecurring ? 'Save & Schedule' : 'Add Contribution'}</Text>
           </TouchableOpacity>
-        </ScrollView>
+        </BottomSheetScrollView>
       </BottomSheet>
     </View>
   );
