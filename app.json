@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "bundleIdentifier": "com.finio.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +25,11 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.finio.app",
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,13 +37,19 @@
     "plugins": [
       "expo-sqlite",
       "expo-font",
-      ["expo-notifications", {
-        "icon": "./assets/icon.png",
-        "color": "#10B981"
-      }],
-      ["expo-local-authentication", {
-        "faceIDPermission": "Allow Finio to use Face ID to unlock the app."
-      }]
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#10B981"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Finio to use Face ID to unlock the app."
+        }
+      ]
     ]
   }
 }

@@ -102,7 +102,7 @@ export default function AppLockOverlay({ onUnlock }: Props) {
               onPress={biometricEnabled ? triggerDeviceAuth : undefined}
               activeOpacity={biometricEnabled ? 0.7 : 1}
             >
-              {biometricEnabled && (
+              {!!biometricEnabled && (
                 <MaterialCommunityIcons
                   name={hasHW ? bioIcon : 'lock-open-outline'}
                   size={30}

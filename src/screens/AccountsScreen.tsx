@@ -128,7 +128,7 @@ interface TransferSheetProps {
 }
 
 function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer, ds, styles }: TransferSheetProps) {
-  const activeAccounts = accounts.filter((a) => !a.is_archived);
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.is_archived), [accounts]);
   const [fromId, setFromId] = useState<string>(activeAccounts[0]?.id ?? '');
   const [toId, setToId]     = useState<string>(activeAccounts[1]?.id ?? '');
   const [amount, setAmount] = useState('');
