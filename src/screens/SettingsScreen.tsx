@@ -776,7 +776,7 @@ export default function SettingsScreen() {
   const ds = useDS();
   const styles = useMemo(() => makeStyles(ds), [ds]);
 
-  const { currencyCode, currencySymbol, theme, pinEnabled, driveConnected, lastBackupAt, smsAutoDetect, saveToDb, loadFromDB } = useSettingsStore();
+  const { currencyCode, currencySymbol, theme, pinEnabled, biometricEnabled, driveConnected, lastBackupAt, smsAutoDetect, saveToDb, loadFromDB } = useSettingsStore();
   const loadPending     = useSmsTransactionsStore(s => s.loadPending);
   const loadAutoCreated = useSmsTransactionsStore(s => s.loadAutoCreated);
   const { loadFromDB: loadCategories } = useCategoriesStore();
@@ -793,7 +793,6 @@ export default function SettingsScreen() {
   const [showTheme,       setShowTheme]       = useState(false);
   const [showPINModal,    setShowPINModal]    = useState(false);
   const [clearing,        setClearing]        = useState(false);
-
   useFocusEffect(useCallback(() => { loadFromDB(); loadCategories(); }, [loadFromDB, loadCategories]));
 
   const handleSmsToggle = async (enabled: boolean) => {
@@ -840,7 +839,7 @@ export default function SettingsScreen() {
           text: 'Disable',
           style: 'destructive',
           onPress: async () => {
-            await saveToDb({ pinEnabled: 0 });
+            await saveToDb({ pinEnabled: 0, biometricEnabled: 0 });
             await updateSettings({ pin_hash: null });
           },
         },
@@ -852,6 +851,10 @@ export default function SettingsScreen() {
     setShowPINModal(false);
     await saveToDb({ pinEnabled: 1 });
     await updateSettings({ pin_hash: pin });
+  };
+
+  const handleBiometricToggle = async (enabled: boolean) => {
+    await saveToDb({ biometricEnabled: enabled ? 1 : 0 });
   };
 
   const handleClearData = () => {
@@ -885,7 +888,7 @@ export default function SettingsScreen() {
                         loadTrips(), loadRecurring(),
                         loadPending(), loadAutoCreated(),
                       ]);
-                      await saveToDb({ pinEnabled: 0 });
+                      await saveToDb({ pinEnabled: 0, biometricEnabled: 0 });
                       Alert.alert('Done', 'All data has been cleared.');
                     } catch {
                       Alert.alert('Error', 'Failed to clear data');
@@ -1003,6 +1006,23 @@ export default function SettingsScreen() {
                 label="Change PIN"
                 onPress={() => setShowPINModal(true)}
               />
+              {Platform.OS !== 'web' && (
+                <>
+                  <View style={styles.rowDivider} />
+                  <SettingsRow
+                    icon="fingerprint"
+                    label="Device Unlock (Biometric / PIN)"
+                    right={
+                      <Switch
+                        value={biometricEnabled === 1}
+                        onValueChange={handleBiometricToggle}
+                        trackColor={{ true: ds.primary, false: ds.surface.elevated }}
+                        thumbColor={biometricEnabled === 1 ? ds.primaryLight : ds.text.muted}
+                      />
+                    }
+                  />
+                </>
+              )}
             </>
           )}
         </AppCard>

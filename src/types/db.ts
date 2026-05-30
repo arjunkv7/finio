@@ -7,6 +7,7 @@ export interface Settings {
   theme: 'light' | 'dark' | 'system';
   pin_enabled: number;
   pin_hash: string | null;
+  biometric_enabled: number;
   drive_connected: number;
   last_backup_at: string | null;
   schema_version: number;
@@ -25,6 +26,7 @@ export type UpdateSettingsInput = Partial<
     | 'theme'
     | 'pin_enabled'
     | 'pin_hash'
+    | 'biometric_enabled'
     | 'drive_connected'
     | 'last_backup_at'
     | 'privacy_hidden'

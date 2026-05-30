@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -224,6 +224,10 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
     }
     await setSchemaVersion(db, 12);
   }
+  if (from < 13) {
+    await db.execAsync(`ALTER TABLE settings ADD COLUMN biometric_enabled INTEGER NOT NULL DEFAULT 0;`);
+    await setSchemaVersion(db, 13);
+  }
 }
 
 // ─── Schema creation ─────────────────────────────────────────────────────────
@@ -237,6 +241,7 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       theme                   TEXT    NOT NULL DEFAULT 'system',
       pin_enabled             INTEGER NOT NULL DEFAULT 0,
       pin_hash                TEXT,
+      biometric_enabled       INTEGER NOT NULL DEFAULT 0,
       drive_connected         INTEGER NOT NULL DEFAULT 0,
       last_backup_at          TEXT,
       schema_version          INTEGER NOT NULL DEFAULT 1,

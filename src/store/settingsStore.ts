@@ -8,6 +8,7 @@ interface SettingsState {
   currencySymbol: string;
   theme: 'light' | 'dark' | 'system';
   pinEnabled: number;
+  biometricEnabled: number;
   driveConnected: number;
   lastBackupAt: string | null;
   schemaVersion: number;
@@ -23,7 +24,7 @@ interface SettingsState {
   loadFromDB: () => Promise<void>;
   saveToDb: (
     patch: Partial<
-      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'driveConnected' | 'lastBackupAt' | 'smsAutoDetect' | 'privacyHidden'>
+      Pick<SettingsState, 'currencyCode' | 'currencySymbol' | 'theme' | 'pinEnabled' | 'biometricEnabled' | 'driveConnected' | 'lastBackupAt' | 'smsAutoDetect' | 'privacyHidden'>
     >
   ) => Promise<void>;
 
@@ -37,6 +38,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   currencySymbol: '₹',
   theme: 'dark',
   pinEnabled: 0,
+  biometricEnabled: 0,
   driveConnected: 0,
   lastBackupAt: null,
   schemaVersion: 1,
@@ -57,6 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           currencySymbol: row.currency_symbol,
           theme: row.theme as 'light' | 'dark' | 'system',
           pinEnabled: row.pin_enabled ?? 0,
+          biometricEnabled: row.biometric_enabled ?? 0,
           driveConnected: row.drive_connected ?? 0,
           lastBackupAt: row.last_backup_at ?? null,
           schemaVersion: row.schema_version,
@@ -79,6 +82,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (patch.currencySymbol != null) dbFields.currency_symbol = patch.currencySymbol;
     if (patch.theme != null) dbFields.theme = patch.theme;
     if (patch.pinEnabled != null) dbFields.pin_enabled = patch.pinEnabled;
+    if (patch.biometricEnabled != null) dbFields.biometric_enabled = patch.biometricEnabled;
     if (patch.driveConnected != null) dbFields.drive_connected = patch.driveConnected;
     if (patch.lastBackupAt !== undefined) dbFields.last_backup_at = patch.lastBackupAt;
     if (patch.smsAutoDetect != null) dbFields.sms_auto_detect = patch.smsAutoDetect;

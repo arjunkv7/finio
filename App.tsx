@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
+import AppLockOverlay from './src/components/AppLockOverlay';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
@@ -176,6 +177,38 @@ function RecurringProcessor() {
   return null;
 }
 
+function AppLockManager({ dbReady }: { dbReady: boolean }) {
+  const pinEnabled       = useSettingsStore(s => s.pinEnabled);
+  const biometricEnabled = useSettingsStore(s => s.biometricEnabled);
+  const [isLocked, setIsLocked] = useState(false);
+  const bgAtRef = useRef<number>(0);
+
+  const isSecured = pinEnabled === 1 || biometricEnabled === 1;
+
+  // Lock on first load once DB is ready and security is on
+  useEffect(() => {
+    if (dbReady && isSecured) setIsLocked(true);
+  }, [dbReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock when returning from background after >3s grace period
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'background' || state === 'inactive') {
+        bgAtRef.current = Date.now();
+      } else if (state === 'active') {
+        const { pinEnabled: pe, biometricEnabled: be } = useSettingsStore.getState();
+        if ((pe === 1 || be === 1) && Date.now() - bgAtRef.current > 3000) {
+          setIsLocked(true);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  if (!isLocked) return null;
+  return <AppLockOverlay onUnlock={() => setIsLocked(false)} />;
+}
+
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const loadSettings          = useSettingsStore(s => s.loadFromDB);
@@ -220,6 +253,7 @@ export default function App() {
             <RecurringProcessor />
             <SmsProcessor />
             <RootNavigator />
+            <AppLockManager dbReady={dbReady} />
           </NavigationContainer>
         </PaperProvider>
       </SafeAreaProvider>
