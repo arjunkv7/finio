@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -707,7 +708,7 @@ export default function SavingsScreen() {
   const navigation = useNavigation();
 
   const insets = useSafeAreaInsets();
-  const { goals, isLoading, loadFromDB, addGoal } = useSavingsStore();
+  const { goals, isLoading, loadFromDB, addGoal, addContribution } = useSavingsStore();
   const { currencySymbol } = useSettingsStore();
 
   const [detailGoalId, setDetailGoalId] = useState<string | null>(null);
@@ -722,7 +723,25 @@ export default function SavingsScreen() {
   const [showDateCal, setShowDateCal] = useState(false);
   const [creating,    setCreating]    = useState(false);
 
+  // Quick-add contribution from list
+  const [addContribGoalId,  setAddContribGoalId]  = useState<string | null>(null);
+  const [addContribAmount,  setAddContribAmount]  = useState('');
+  const [addContribDate,    setAddContribDate]    = useState(new Date());
+  const [addContribNote,    setAddContribNote]    = useState('');
+  const [addContribShowCal, setAddContribShowCal] = useState(false);
+  const [addContribSaving,  setAddContribSaving]  = useState(false);
+
   useFocusEffect(useCallback(() => { loadFromDB(); }, [loadFromDB]));
+
+  // Hardware back intercept when viewing goal detail
+  useEffect(() => {
+    if (!detailGoalId) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setDetailGoalId(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [detailGoalId]);
 
   if (detailGoalId) {
     return <GoalDetailView goalId={detailGoalId} onBack={() => setDetailGoalId(null)} />;
@@ -759,6 +778,36 @@ export default function SavingsScreen() {
       Alert.alert('Error', 'Could not create goal');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const resetAddContribForm = () => {
+    setAddContribAmount(''); setAddContribNote('');
+    setAddContribDate(new Date()); setAddContribShowCal(false);
+  };
+
+  const handleQuickAdd = async () => {
+    if (!addContribGoalId) return;
+    const paise = Math.round(parseFloat(addContribAmount) * 100);
+    if (!addContribAmount.trim() || isNaN(paise) || paise <= 0) {
+      Alert.alert('Invalid amount', 'Enter a positive number');
+      return;
+    }
+    setAddContribSaving(true);
+    try {
+      await addContribution({
+        goal_id: addContribGoalId,
+        amount: paise,
+        notes: addContribNote.trim() || null,
+        contribution_date: toDateStr(addContribDate),
+      });
+      setAddContribGoalId(null);
+      resetAddContribForm();
+      loadFromDB();
+    } catch {
+      Alert.alert('Error', 'Could not save contribution');
+    } finally {
+      setAddContribSaving(false);
     }
   };
 
@@ -812,12 +861,24 @@ export default function SavingsScreen() {
 
           {/* Bottom row */}
           <View style={s.goalCardBottom}>
-            <Text style={s.goalSaved}>
-              {currencySymbol}{formatBal(goal.contributed)} saved
-            </Text>
-            <Text style={s.goalTarget}>
-              of {currencySymbol}{formatBal(goal.target_amount)}
-            </Text>
+            <View>
+              <Text style={s.goalSaved}>
+                {currencySymbol}{formatBal(goal.contributed)} saved
+              </Text>
+              <Text style={s.goalTarget}>
+                of {currencySymbol}{formatBal(goal.target_amount)}
+              </Text>
+            </View>
+            {!isCompleted && (
+              <TouchableOpacity
+                style={s.addContribBtn}
+                onPress={() => setAddContribGoalId(goal.id)}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="plus" size={15} color="#fff" />
+                <Text style={s.addContribText}>Add</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </AppCard>
       </TouchableOpacity>
@@ -887,6 +948,71 @@ export default function SavingsScreen() {
       >
         <MaterialCommunityIcons name="plus" size={28} color="#fff" />
       </TouchableOpacity>
+
+      {/* ── Quick-Add Contribution Sheet ── */}
+      <BottomSheet
+        visible={addContribGoalId !== null}
+        onClose={() => { setAddContribGoalId(null); resetAddContribForm(); }}
+        title="Add Contribution"
+      >
+        <ScrollView
+          contentContainerStyle={s.sheetContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={s.fieldLabel}>Amount *</Text>
+          <View style={s.inputRow}>
+            <Text style={s.currencyPrefix}>{currencySymbol}</Text>
+            <TextInput
+              style={s.input}
+              value={addContribAmount}
+              onChangeText={setAddContribAmount}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={ds.text.muted}
+              autoFocus
+            />
+          </View>
+
+          <Text style={s.fieldLabel}>Date</Text>
+          <TouchableOpacity
+            style={s.dateRow}
+            onPress={() => setAddContribShowCal(c => !c)}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="calendar" size={18} color={ds.text.muted} />
+            <Text style={s.dateText}>
+              {toDateStr(addContribDate) === toDateStr(new Date()) ? 'Today' : formatDateLocal(toDateStr(addContribDate))}
+            </Text>
+            <MaterialCommunityIcons name={addContribShowCal ? 'chevron-up' : 'chevron-down'} size={18} color={ds.text.muted} />
+          </TouchableOpacity>
+          {addContribShowCal && (
+            <InlineCalendar
+              value={addContribDate}
+              onSelect={(d) => { setAddContribDate(d); setAddContribShowCal(false); }}
+            />
+          )}
+
+          <Text style={s.fieldLabel}>Note (optional)</Text>
+          <TextInput
+            style={[s.input, s.textArea]}
+            value={addContribNote}
+            onChangeText={setAddContribNote}
+            placeholder="e.g. Monthly deposit"
+            placeholderTextColor={ds.text.muted}
+            multiline
+            numberOfLines={2}
+          />
+
+          <TouchableOpacity
+            style={[s.ctaBtn, addContribSaving && s.ctaBtnDisabled]}
+            onPress={handleQuickAdd}
+            disabled={addContribSaving}
+            activeOpacity={0.85}
+          >
+            <Text style={s.ctaText}>{addContribSaving ? 'Saving…' : 'Add Contribution'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </BottomSheet>
 
       {/* ── Create Goal Sheet ── */}
       <BottomSheet
