@@ -8,7 +8,8 @@ export interface ParsedSmsTransaction {
 // Debit / expense patterns
 const DEBIT_RES: RegExp[] = [
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:has[\s-]been\s+)?(?:debited|deducted|debit)/i,
-  /(?:debited|deducted)\s+(?:with\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  // "debited with/by/for Rs.X" — SBI, Axis, ICICI, BOI all use different prepositions
+  /(?:debited|deducted)\s+(?:with\s+|by\s+|for\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:txn|transaction)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:purchase|payment|paid)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:spent|deducted|charged|sent)/i,
@@ -18,16 +19,24 @@ const DEBIT_RES: RegExp[] = [
   /(?:spent|send|sent)\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   // "charged ₹X" (amount after keyword)
   /charged\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  // "transferred Rs.X to" — outgoing NEFT/RTGS/IMPS
+  /transferred\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+to\b/i,
+  // "Rs.X transferred to" — alternate order
+  /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+transferred\s+to\b/i,
 ];
 
 // Credit / income patterns
 const CREDIT_RES: RegExp[] = [
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:has[\s-]been\s+)?(?:credited|deposited)/i,
-  /(?:credited|deposited)\s+(?:with\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  /(?:credited|deposited)\s+(?:with\s+|by\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:received|deposited)/i,
   /received\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:refund|cashback)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:refund|cashback)/i,
+  // "transferred to your account Rs.X" — Kotak, Yes Bank incoming transfers
+  /transferred\s+to\s+(?:your\s+)?(?:account|a\/c|acct)[^0-9]*(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  // "money received in your account Rs.X" / "amount credited in a/c Rs.X"
+  /(?:money\s+received|amount\s+(?:credited|received))\s+in\s+(?:your\s+)?(?:account|a\/c)[^0-9]*(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
 ];
 
 function extractAmount(body: string, patterns: RegExp[]): number | null {
@@ -42,7 +51,7 @@ function extractAmount(body: string, patterns: RegExp[]): number | null {
 }
 
 function detectAccountType(body: string): 'bank' | 'credit' | 'wallet' {
-  if (/credit\s+card|cc\s+ending|card\s+ending|cc\s+no\.?/i.test(body)) return 'credit';
+  if (/credit\s+card|cc\s+ending|card\s+ending|cc\s+no\.?|credit\s+limit|outstanding\s+(?:amount|balance|due)|(?:visa|master(?:card)?|rupay|amex)\s+(?:card|credit)/i.test(body)) return 'credit';
   if (/paytm\s+wallet|phonepe\s+wallet|amazon\s+pay\s+balance|mobikwik\s+wallet/i.test(body)) return 'wallet';
   return 'bank';
 }
@@ -79,7 +88,9 @@ function extractDescription(body: string): string | null {
 export function parseSms(address: string, body: string): ParsedSmsTransaction | null {
   // Skip OTP and promotional messages
   if (/\botp\b|one[\s-]time[\s-]pass|verification\s+code|your\s+otp\s+is/i.test(body)) return null;
-  if (/congratulations|exclusive\s+offer|limited\s+time|click\s+here|subscribe/i.test(body)) return null;
+  if (/exclusive\s+offer|limited\s+time|click\s+here|subscribe/i.test(body)) return null;
+  // "Congratulations" alone is not promo — Kotak uses it for salary/IMPS credits; only block if no transaction amount follows
+  if (/congratulations/i.test(body) && !/(?:rs\.?|inr|₹)\s*[0-9]/i.test(body)) return null;
   // Must contain a currency amount
   if (!/(?:rs\.?|inr|₹)\s*[0-9]/i.test(body)) return null;
   // Must have a financial keyword
