@@ -26,6 +26,7 @@ import { AccountsStackParamList, AccountType } from '../types';
 import AppCard from '../components/AppCard';
 import EmptyState from '../components/EmptyState';
 import BottomSheet from '../components/BottomSheet';
+import { getDistinctAllTags } from '../db/queries';
 import PrimaryButton from '../components/PrimaryButton';
 import SecondaryButton from '../components/SecondaryButton';
 
@@ -121,7 +122,7 @@ interface TransferSheetProps {
   onClose: () => void;
   accounts: AccountWithBalance[];
   currencySymbol: string;
-  onTransfer: (fromId: string, toId: string, amountPaise: number) => Promise<void>;
+  onTransfer: (fromId: string, toId: string, amountPaise: number, tag: string | null) => Promise<void>;
   ds: DSType;
   styles: ReturnType<typeof makeStyles>;
 }
@@ -131,14 +132,23 @@ function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer,
   const [fromId, setFromId] = useState<string>(activeAccounts[0]?.id ?? '');
   const [toId, setToId]     = useState<string>(activeAccounts[1]?.id ?? '');
   const [amount, setAmount] = useState('');
+  const [tags, setTags]     = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [busy, setBusy]     = useState(false);
 
   const ACCOUNT_META = getAccountMeta(ds);
+
+  useEffect(() => {
+    getDistinctAllTags().then(setTagSuggestions).catch(() => {});
+  }, []);
 
   const reset = useCallback(() => {
     setFromId(activeAccounts[0]?.id ?? '');
     setToId(activeAccounts[1]?.id ?? '');
     setAmount('');
+    setTags([]);
+    setTagInput('');
   }, [activeAccounts]);
 
   useEffect(() => { if (!visible) reset(); }, [visible, reset]);
@@ -152,7 +162,7 @@ function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer,
     }
     setBusy(true);
     try {
-      await onTransfer(fromId, toId, paise);
+      await onTransfer(fromId, toId, paise, tags.length > 0 ? tags.join(',') : null);
       onClose();
     } catch {
       Alert.alert('Error', 'Transfer failed. Please try again.');
@@ -223,6 +233,81 @@ function TransferSheet({ visible, onClose, accounts, currencySymbol, onTransfer,
           />
         </View>
 
+        {/* Tags */}
+        <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Tags <Text style={{ color: ds.text.muted, fontSize: 13 }}>(optional)</Text></Text>
+        {tags.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {tags.map(t => (
+              <TouchableOpacity
+                key={t}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  paddingHorizontal: 10, paddingVertical: 5,
+                  borderRadius: 20, borderWidth: 1,
+                  backgroundColor: hexToRgba(ds.primary, 0.12),
+                  borderColor: ds.primary,
+                }}
+                onPress={() => setTags(tags.filter(x => x !== t))}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: ds.primary }}>#{t}</Text>
+                <MaterialCommunityIcons name="close" size={13} color={ds.primary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        <View style={[styles.amountInputRow, { paddingHorizontal: 12 }]}>
+          <TextInput
+            style={[styles.amountInput, { flex: 1, fontSize: 15 }]}
+            value={tagInput}
+            onChangeText={setTagInput}
+            placeholder="Add a tag…"
+            placeholderTextColor={ds.text.muted}
+            selectionColor={ds.primary}
+            returnKeyType="done"
+            maxLength={40}
+            autoCapitalize="none"
+            onSubmitEditing={() => {
+              const t = tagInput.trim().toLowerCase();
+              if (t && !tags.includes(t)) setTags([...tags, t]);
+              setTagInput('');
+            }}
+          />
+          {tagInput.trim().length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                const t = tagInput.trim().toLowerCase();
+                if (t && !tags.includes(t)) setTags([...tags, t]);
+                setTagInput('');
+              }}
+              activeOpacity={0.7}
+              style={{ paddingLeft: 8 }}
+            >
+              <MaterialCommunityIcons name="plus-circle" size={20} color={ds.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {tagSuggestions.filter(s => !tags.includes(s)).length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {tagSuggestions.filter(s => !tags.includes(s)).map(s => (
+                <TouchableOpacity
+                  key={s}
+                  style={{
+                    paddingHorizontal: 10, paddingVertical: 5,
+                    borderRadius: 20, borderWidth: 1,
+                    borderColor: ds.border.subtle,
+                  }}
+                  onPress={() => setTags([...tags, s])}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.muted }}>#{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+
         <PrimaryButton
           label="Transfer"
           onPress={handleTransfer}
@@ -261,7 +346,7 @@ export default function AccountsScreen() {
     );
   };
 
-  const handleTransfer = async (fromId: string, toId: string, amountPaise: number) => {
+  const handleTransfer = async (fromId: string, toId: string, amountPaise: number, tag: string | null) => {
     const today = new Date().toISOString().slice(0, 10);
     await addTransaction({
       type: 'transfer',
@@ -270,6 +355,7 @@ export default function AccountsScreen() {
       to_account_id: toId,
       transaction_date: today,
       description: 'Transfer',
+      tag,
     });
     await loadFromDB();
   };

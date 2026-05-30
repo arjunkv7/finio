@@ -18,6 +18,8 @@ import { useRecurringStore } from '../store/recurringStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useSavingsStore } from '../store/savingsStore';
+import { useInvestmentsStore } from '../store/investmentsStore';
 import { RecurringTransaction, RootStackParamList } from '../types';
 import PageHeader from '../components/PageHeader';
 
@@ -218,12 +220,16 @@ export default function RecurringScreen() {
   const { items, isLoading, loadFromDB, updateRecurring, deleteRecurring } = useRecurringStore();
   const { getCategoryById, loadFromDB: loadCats } = useCategoriesStore();
   const { accounts, loadFromDB: loadAccounts } = useAccountsStore();
+  const { goals, loadFromDB: loadSavings } = useSavingsStore();
+  const { investments, loadFromDB: loadInvestments } = useInvestmentsStore();
 
   useFocusEffect(useCallback(() => {
     loadFromDB();
     loadCats();
     loadAccounts();
-  }, [loadFromDB, loadCats, loadAccounts]));
+    loadSavings();
+    loadInvestments();
+  }, [loadFromDB, loadCats, loadAccounts, loadSavings, loadInvestments]));
 
   const active = items.filter(i => i.is_active === 1);
   const paused = items.filter(i => i.is_active === 0);
@@ -247,38 +253,56 @@ export default function RecurringScreen() {
     `${currencySymbol}${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const renderCard = (item: RecurringTransaction) => {
-    const cat = item.category_id ? getCategoryById(item.category_id) : null;
     const account = accounts.find(a => a.id === item.account_id);
-    const isIncome = item.type === 'income';
-    const amtColor = isIncome ? ds.primary : ds.secondary;
-    const catColor = cat?.color ?? (isIncome ? ds.primary : ds.secondary);
     const isPaused = item.is_active === 0;
+
+    // Determine display metadata based on entry type
+    let iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+    let accentColor: string;
+    let title: string;
+    let amtSign: string;
+
+    if (item.savings_goal_id) {
+      const goal = goals.find(g => g.id === item.savings_goal_id);
+      iconName = (goal?.icon ?? 'piggy-bank') as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+      accentColor = goal?.color ?? ds.primary;
+      title = goal?.name ?? item.description ?? 'Savings';
+      amtSign = '+';
+    } else if (item.investment_id) {
+      const inv = investments.find(i => i.id === item.investment_id);
+      iconName = 'trending-up';
+      accentColor = '#8B5CF6';
+      title = inv?.asset_name ?? item.description ?? 'Investment';
+      amtSign = '+';
+    } else {
+      const cat = item.category_id ? getCategoryById(item.category_id) : null;
+      const isIncome = item.type === 'income';
+      iconName = (cat?.icon ?? (isIncome ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline')) as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+      accentColor = cat?.color ?? (isIncome ? ds.primary : ds.secondary);
+      title = item.description ?? cat?.name ?? (isIncome ? 'Income' : 'Expense');
+      amtSign = isIncome ? '+' : '-';
+    }
 
     return (
       <View key={item.id} style={[styles.card, isPaused && styles.cardPaused]}>
         <View style={styles.cardTop}>
-          <View style={[styles.iconWrap, { backgroundColor: hexToRgba(catColor, 0.15) }]}>
-            <MaterialCommunityIcons
-              name={(cat?.icon ?? (isIncome ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline')) as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
-              size={22}
-              color={catColor}
-            />
+          <View style={[styles.iconWrap, { backgroundColor: hexToRgba(accentColor, 0.15) }]}>
+            <MaterialCommunityIcons name={iconName} size={22} color={accentColor} />
           </View>
           <View style={styles.cardMain}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {item.description ?? cat?.name ?? (isIncome ? 'Income' : 'Expense')}
-            </Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.cardSub}>
-              {FREQ_LABEL[item.frequency]} · {account?.name ?? '—'} · {item.time_of_day}
+              {FREQ_LABEL[item.frequency]} · {account?.name ?? '—'}
+              {item.savings_goal_id ? ' · Savings' : item.investment_id ? ' · SIP' : ` · ${item.time_of_day}`}
             </Text>
           </View>
           <View style={styles.amountRow}>
-            <Text style={[styles.amountText, { color: amtColor }]}>
-              {isIncome ? '+' : '-'}{formatAmount(item.amount)}
+            <Text style={[styles.amountText, { color: accentColor }]}>
+              {amtSign}{formatAmount(item.amount)}
             </Text>
-            <View style={[styles.typeChip, { backgroundColor: hexToRgba(amtColor, 0.1) }]}>
-              <MaterialCommunityIcons name={FREQ_ICON[item.frequency]} size={10} color={amtColor} />
-              <Text style={[styles.typeChipText, { color: amtColor }]}>{FREQ_LABEL[item.frequency]}</Text>
+            <View style={[styles.typeChip, { backgroundColor: hexToRgba(accentColor, 0.1) }]}>
+              <MaterialCommunityIcons name={FREQ_ICON[item.frequency]} size={10} color={accentColor} />
+              <Text style={[styles.typeChipText, { color: accentColor }]}>{FREQ_LABEL[item.frequency]}</Text>
             </View>
           </View>
         </View>

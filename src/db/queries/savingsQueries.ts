@@ -81,19 +81,39 @@ export async function addContribution(input: CreateContributionInput): Promise<S
   const db = await getDb();
   const id = uuidv4();
   const ts = now();
-  await db.runAsync(
-    `INSERT INTO savings_contributions (id, goal_id, amount, notes, contribution_date, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [id, input.goal_id, input.amount, input.notes ?? null, input.contribution_date, ts]
-  );
+  let linkedTransactionId: string | null = null;
 
-  // Auto-mark goal complete if target reached
+  await db.withTransactionAsync(async () => {
+    // If an account is linked, deduct the amount as an expense transaction
+    if (input.account_id) {
+      const txId = uuidv4();
+      await db.runAsync(
+        `INSERT INTO transactions
+           (id, type, amount, account_id, to_account_id, category_id, description, notes,
+            transaction_date, transaction_time, receipt_photo_uri, is_recurring, recurrence_rule,
+            trip_id, tag, is_deleted, created_at, updated_at)
+         VALUES (?, 'transfer', ?, ?, NULL, NULL, 'Savings contribution', NULL, ?, NULL, NULL, 0, NULL, NULL, 'savings', 0, ?, ?)`,
+        [txId, input.amount, input.account_id, input.contribution_date, ts, ts]
+      );
+      linkedTransactionId = txId;
+    }
+
+    await db.runAsync(
+      `INSERT INTO savings_contributions
+         (id, goal_id, amount, notes, contribution_date, account_id, linked_transaction_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.goal_id, input.amount, input.notes ?? null, input.contribution_date,
+       input.account_id ?? null, linkedTransactionId, ts]
+    );
+  });
+
+  // Auto-mark goal complete if target reached (outside transaction for clean reads)
   const total = await getTotalContributed(input.goal_id);
   const goal = await getSavingsGoalById(input.goal_id);
   if (goal && total >= goal.target_amount && !goal.is_completed) {
     await db.runAsync(
       'UPDATE savings_goals SET is_completed = 1, updated_at = ? WHERE id = ?',
-      [ts, input.goal_id]
+      [now(), input.goal_id]
     );
   }
 
@@ -127,7 +147,22 @@ export async function getTotalContributed(goalId: string): Promise<number> {
 
 export async function deleteContribution(id: string): Promise<void> {
   const db = await getDb();
-  await db.runAsync('DELETE FROM savings_contributions WHERE id = ?', [id]);
+
+  const contrib = await db.getFirstAsync<{ linked_transaction_id: string | null }>(
+    'SELECT linked_transaction_id FROM savings_contributions WHERE id = ?',
+    [id]
+  );
+
+  await db.withTransactionAsync(async () => {
+    // Revert account balance by soft-deleting the linked expense transaction
+    if (contrib?.linked_transaction_id) {
+      await db.runAsync(
+        'UPDATE transactions SET is_deleted = 1, updated_at = ? WHERE id = ? AND is_deleted = 0',
+        [now(), contrib.linked_transaction_id]
+      );
+    }
+    await db.runAsync('DELETE FROM savings_contributions WHERE id = ?', [id]);
+  });
 }
 
 // Returns goal with live progress fields

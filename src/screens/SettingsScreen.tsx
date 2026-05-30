@@ -76,11 +76,36 @@ const THEME_OPTIONS: { value: 'dark' | 'light' | 'system'; label: string; icon: 
 ];
 
 const CAT_ICONS: IconName[] = [
-  'food-fork-drink', 'car',          'home',        'shopping',
-  'medical-bag',     'school',       'airplane',    'cash',
-  'briefcase',       'gift',         'coffee',      'heart',
-  'dumbbell',        'music-note',   'television',  'book-open-variant',
-  'gamepad-variant', 'baby-carriage','phone',       'cart',
+  // Food & Drink
+  'food-fork-drink', 'food',           'pizza',          'coffee',
+  'beer',            'cart',
+  // Transport
+  'car',             'bus',            'train',           'airplane',
+  'bike',            'gas-station',
+  // Home & Living
+  'home',            'home-city',      'sofa',            'hammer',
+  'key',             'fire',           'water',
+  // Finance
+  'cash',            'cash-multiple',  'bank',            'credit-card',
+  'wallet',          'piggy-bank',     'chart-line',      'chart-bar',
+  'trending-up',
+  // Shopping & Lifestyle
+  'shopping',        'tshirt-crew',    'content-cut',     'gift',
+  // Work & Education
+  'briefcase',       'laptop',         'school',
+  // Health & Fitness
+  'medical-bag',     'heart',          'dumbbell',        'weight-lifter',
+  'run',             'pill',           'stethoscope',
+  // Entertainment & Media
+  'television',      'music-note',     'book-open-variant','gamepad-variant',
+  'ticket',          'camera',         'headphones',
+  // Kids & Family
+  'baby-carriage',   'paw',
+  // Tech & Utilities
+  'phone',           'wifi',           'receipt',         'tools',
+  'wrench',
+  // Misc
+  'movie-open',      'lightning-bolt', 'dots-horizontal',
 ];
 
 const CAT_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#F43F5E', '#06B6D4', '#EC4899', '#EF4444'];

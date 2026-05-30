@@ -135,7 +135,7 @@ export interface TransactionFilter {
   type?: TransactionType;
   account_id?: string;
   category_id?: string;
-  tag?: string;
+  tags?: string[];
   start_date?: string;
   end_date?: string;
   search?: string;
@@ -181,6 +181,8 @@ export interface SavingsContribution {
   amount: number;
   notes: string | null;
   contribution_date: string;
+  account_id: string | null;
+  linked_transaction_id: string | null;
   created_at: string;
 }
 
@@ -189,6 +191,28 @@ export interface CreateContributionInput {
   amount: number;
   notes?: string | null;
   contribution_date: string;
+  account_id?: string | null;
+}
+
+// ─── Investment Contributions ─────────────────────────────────────────────────
+
+export interface InvestmentContribution {
+  id: string;
+  investment_id: string;
+  amount: number;
+  notes: string | null;
+  contribution_date: string;
+  account_id: string | null;
+  linked_transaction_id: string | null;
+  created_at: string;
+}
+
+export interface CreateInvestmentContributionInput {
+  investment_id: string;
+  amount: number;
+  notes?: string | null;
+  contribution_date: string;
+  account_id?: string | null;
 }
 
 // ─── Investments ─────────────────────────────────────────────────────────────
@@ -209,6 +233,8 @@ export interface Investment {
   amount_invested: number;
   investment_date: string;
   notes: string | null;
+  account_id: string | null;
+  linked_transaction_id: string | null;
   is_deleted: number;
   created_at: string;
   updated_at: string;
@@ -220,9 +246,10 @@ export interface CreateInvestmentInput {
   amount_invested: number;
   investment_date: string;
   notes?: string | null;
+  account_id?: string | null;
 }
 
-export type UpdateInvestmentInput = Partial<CreateInvestmentInput>;
+export type UpdateInvestmentInput = Partial<Omit<CreateInvestmentInput, 'account_id'>>;
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
@@ -330,6 +357,8 @@ export interface RecurringTransaction {
   next_run_date: string;
   time_of_day: string;
   is_active: number;
+  savings_goal_id: string | null;
+  investment_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -344,6 +373,8 @@ export interface CreateRecurringTransactionInput {
   frequency: RecurrenceFrequency;
   start_date: string;
   time_of_day?: string;
+  savings_goal_id?: string | null;
+  investment_id?: string | null;
 }
 
 export type UpdateRecurringTransactionInput = Partial<{

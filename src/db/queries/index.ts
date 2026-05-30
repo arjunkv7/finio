@@ -3,6 +3,7 @@ export * from './categoryQueries';
 export * from './transactionQueries';
 export * from './savingsQueries';
 export * from './investmentQueries';
+export * from './investmentContributionQueries';
 export * from './tripQueries';
 export * from './budgetQueries';
 export * from './notificationQueries';

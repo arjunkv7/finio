@@ -30,12 +30,14 @@ export async function createRecurringTransaction(
   await db.runAsync(
     `INSERT INTO recurring_transactions
        (id, type, amount, account_id, category_id, description, notes,
-        frequency, next_run_date, time_of_day, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        frequency, next_run_date, time_of_day, is_active,
+        savings_goal_id, investment_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
     [
       id, input.type, input.amount, input.account_id,
       input.category_id ?? null, input.description ?? null, input.notes ?? null,
-      input.frequency, input.start_date, timeOfDay, now, now,
+      input.frequency, input.start_date, timeOfDay,
+      input.savings_goal_id ?? null, input.investment_id ?? null, now, now,
     ],
   );
 

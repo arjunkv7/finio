@@ -27,7 +27,8 @@ import { Transaction, TransactionFilter } from '../types';
 import {
   getTransactionsPaginated,
   getFilteredSummary,
-  getDistinctExpenseTags,
+  getDistinctTagsByType,
+  getDistinctAllTags,
 } from '../db/queries';
 import TransactionListItem from '../components/TransactionListItem';
 import EmptyState from '../components/EmptyState';
@@ -80,7 +81,7 @@ function buildFilter(
   customEnd: string,
   typeFilter: TypeFilter,
   categoryFilter: string | null,
-  tagFilter: string | null,
+  tagFilter: string[],
   search: string,
 ): TransactionFilter {
   const f: TransactionFilter = {};
@@ -96,7 +97,7 @@ function buildFilter(
 
   if (typeFilter !== 'all')   f.type        = typeFilter;
   if (categoryFilter)         f.category_id = categoryFilter;
-  if (tagFilter)              f.tag         = tagFilter;
+  if (tagFilter.length > 0)   f.tags        = tagFilter;
   if (search)                 f.search      = search;
   return f;
 }
@@ -394,7 +395,7 @@ export default function HistoryScreen() {
   const [customEnd,      setCustomEnd]      = useState('');
   const [typeFilter,     setTypeFilter]     = useState<TypeFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [tagFilter,      setTagFilter]      = useState<string | null>(null);
+  const [tagFilter,      setTagFilter]      = useState<string[]>([]);
   const [availableTags,  setAvailableTags]  = useState<string[]>([]);
   const [search,         setSearch]         = useState('');
   const [debSearch,      setDebSearch]      = useState('');
@@ -423,7 +424,7 @@ export default function HistoryScreen() {
   const customEndRef     = useRef(customEnd);
   const typeFilterRef    = useRef(typeFilter);
   const categoryFilterRef = useRef(categoryFilter);
-  const tagFilterRef     = useRef(tagFilter);
+  const tagFilterRef     = useRef<string[]>(tagFilter);
   const debSearchRef     = useRef(debSearch);
   useEffect(() => { dateModRef.current       = dateMode;       }, [dateMode]);
   useEffect(() => { yearRef.current          = year;           }, [year]);
@@ -450,8 +451,15 @@ export default function HistoryScreen() {
       typeFilterRef.current, categoryFilterRef.current,
       tagFilterRef.current, debSearchRef.current, false,
     );
-    getDistinctExpenseTags().then(setAvailableTags).catch(() => {});
+    (typeFilterRef.current === 'all' ? getDistinctAllTags() : getDistinctTagsByType(typeFilterRef.current))
+      .then(setAvailableTags).catch(() => {});
   }, []));
+
+  // Reload available tags when type filter changes
+  useEffect(() => {
+    (typeFilter === 'all' ? getDistinctAllTags() : getDistinctTagsByType(typeFilter))
+      .then(setAvailableTags).catch(() => {});
+  }, [typeFilter]);
 
   // ── Search debounce ───────────────────────────────────────────────────────
 
@@ -476,7 +484,7 @@ export default function HistoryScreen() {
   const triggerLoad = useCallback(async (
     dm: DateMode, y: number, mo: number,
     cs: string, ce: string,
-    tf: TypeFilter, cf: string | null, tgf: string | null,
+    tf: TypeFilter, cf: string | null, tgf: string[],
     s: string, clearFirst = false,
   ) => {
     const f = buildFilter(dm, y, mo, cs, ce, tf, cf, tgf, s);
@@ -536,20 +544,20 @@ export default function HistoryScreen() {
   const handleMonthChange = useCallback((y: number, m: number) => {
     setDateMode('month');
     setYear(y); setMonth(m);
-    setTypeFilter('all'); setCategoryFilter(null); setTagFilter(null); setSearch('');
+    setTypeFilter('all'); setCategoryFilter(null); setTagFilter([]); setSearch('');
   }, []);
 
   const handleCustomRange = useCallback((start: string, end: string) => {
     setDateMode('custom');
     setCustomStart(start); setCustomEnd(end);
-    setTypeFilter('all'); setCategoryFilter(null); setTagFilter(null); setSearch('');
+    setTypeFilter('all'); setCategoryFilter(null); setTagFilter([]); setSearch('');
   }, []);
 
   // When type filter changes, reset dependent filters
   const handleTypeFilter = useCallback((tf: TypeFilter) => {
     setTypeFilter(tf);
     setCategoryFilter(null);
-    setTagFilter(null);
+    setTagFilter([]);
   }, []);
 
   // ── Derived category list for filter ─────────────────────────────────────
@@ -603,7 +611,7 @@ export default function HistoryScreen() {
     const cat = tx.category_id ? getCategoryById(tx.category_id) : null;
     const acct = accountName(tx.account_id);
     const metaParts = [cat?.name, acct].filter(Boolean);
-    if (tx.tag) metaParts.push(`#${tx.tag}`);
+    if (tx.tag) tx.tag.split(',').forEach(t => metaParts.push(`#${t.trim()}`));
     const meta = metaParts.join('  ·  ');
     return (
       <TransactionListItem
@@ -715,25 +723,27 @@ export default function HistoryScreen() {
         </ScrollView>
       )}
 
-      {/* Tag filter chips (expense only) */}
-      {typeFilter === 'expense' && availableTags.length > 0 && (
+      {/* Tag filter chips */}
+      {availableTags.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {availableTags.map(t => {
-            const active = tagFilter === t;
+            const active = tagFilter.includes(t);
+            const tagColor = typeFilter === 'income' ? ds.primary : typeFilter === 'expense' ? ds.secondary : ds.primary;
+            const tagColorLight = typeFilter === 'income' ? ds.primaryLight : typeFilter === 'expense' ? ds.secondaryLight : ds.primaryLight;
             return (
               <TouchableOpacity
                 key={t}
                 style={[
                   styles.chip,
                   active
-                    ? { backgroundColor: hexToRgba(ds.secondary, 0.18), borderColor: ds.secondary }
+                    ? { backgroundColor: hexToRgba(tagColor, 0.18), borderColor: tagColor }
                     : { borderColor: ds.border.subtle },
                 ]}
-                onPress={() => setTagFilter(active ? null : t)}
+                onPress={() => setTagFilter(active ? tagFilter.filter(x => x !== t) : [...tagFilter, t])}
                 activeOpacity={0.75}
               >
-                <MaterialCommunityIcons name="tag-outline" size={14} color={active ? ds.secondary : ds.text.muted} />
-                <Text style={[styles.chipText, active && { color: ds.secondaryLight }]}>#{t}</Text>
+                <MaterialCommunityIcons name="tag-outline" size={14} color={active ? tagColor : ds.text.muted} />
+                <Text style={[styles.chipText, active && { color: tagColorLight }]}>#{t}</Text>
               </TouchableOpacity>
             );
           })}

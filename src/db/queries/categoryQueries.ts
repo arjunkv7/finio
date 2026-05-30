@@ -33,14 +33,14 @@ export async function getCategoryById(id: string): Promise<Category | null> {
 export async function getAllCategories(): Promise<Category[]> {
   const db = await getDb();
   return db.getAllAsync<Category>(
-    'SELECT * FROM categories WHERE is_deleted = 0 ORDER BY type ASC, sort_order ASC'
+    "SELECT * FROM categories WHERE is_deleted = 0 ORDER BY type ASC, CASE WHEN name = 'Other' THEN 1 ELSE 0 END, sort_order ASC"
   );
 }
 
 export async function getCategoriesByType(type: CategoryType): Promise<Category[]> {
   const db = await getDb();
   return db.getAllAsync<Category>(
-    'SELECT * FROM categories WHERE type = ? AND is_deleted = 0 ORDER BY sort_order ASC',
+    "SELECT * FROM categories WHERE type = ? AND is_deleted = 0 ORDER BY CASE WHEN name = 'Other' THEN 1 ELSE 0 END, sort_order ASC",
     [type]
   );
 }

@@ -26,6 +26,7 @@ import { useRecurringStore } from '../store/recurringStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { Category, RecurrenceFrequency, RootStackParamList } from '../types';
 import BottomSheet from '../components/BottomSheet';
+import { getDistinctAllTags } from '../db/queries';
 
 type Nav = StackNavigationProp<RootStackParamList, 'AddTransaction'>;
 type Route = RouteProp<RootStackParamList, 'AddTransaction'>;
@@ -538,7 +539,7 @@ function CategorySheet({ visible, onClose, categories, selectedId, onSelect }: C
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Select Category">
-      <View style={styles.categorySheetBody}>
+      <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={styles.categorySheetBody} showsVerticalScrollIndicator={false}>
         {categories.map((cat) => {
           const isSelected = cat.id === selectedId;
           return (
@@ -562,7 +563,7 @@ function CategorySheet({ visible, onClose, categories, selectedId, onSelect }: C
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
     </BottomSheet>
   );
 }
@@ -1116,7 +1117,11 @@ export default function AddTransactionScreen() {
   });
   const [description, setDescription] = useState(() => editTx?.description ?? '');
   const [notes, setNotes]             = useState(() => editTx?.notes ?? '');
-  const [tag, setTag]                 = useState(() => editTx?.tag ?? '');
+  const [tags, setTags]               = useState<string[]>(() =>
+    editTx?.tag ? editTx.tag.split(',').map(t => t.trim()).filter(Boolean) : []
+  );
+  const [tagInput, setTagInput]       = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
@@ -1139,6 +1144,7 @@ export default function AddTransactionScreen() {
   useEffect(() => {
     loadCats();
     loadAccounts();
+    getDistinctAllTags().then(setTagSuggestions).catch(() => {});
   }, [loadCats, loadAccounts]);
 
   // Default account = first active (only when NOT editing — edit tx has its own account)
@@ -1154,7 +1160,6 @@ export default function AddTransactionScreen() {
     setTxType(t);
     setCategoryId(null);
     setCategoryError('');
-    if (t !== 'expense') setTag('');
   }, []);
 
   // ── Derived state ─────────────────────────────────────────────────────────
@@ -1222,7 +1227,7 @@ export default function AddTransactionScreen() {
           transaction_time: timeStr,
           description: description.trim() || null,
           notes: notes.trim() || null,
-          tag: txType === 'expense' ? (tag.trim() || null) : null,
+          tag: tags.length > 0 ? tags.join(',') : null,
         };
         if (isEditing) {
           await updateTransaction(editTx!.id, payload);
@@ -1465,27 +1470,88 @@ export default function AddTransactionScreen() {
             </View>
           </View>
 
-          {/* ── Tag (expense only) ── */}
-          {txType === 'expense' && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Tag <Text style={styles.optionalTag}>(optional)</Text></Text>
-              </View>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.textInput}
-                  value={tag}
-                  onChangeText={setTag}
-                  placeholder="e.g. split, reimbursable, work…"
-                  placeholderTextColor={ds.text.muted}
-                  selectionColor={ds.secondary}
-                  returnKeyType="done"
-                  maxLength={40}
-                  autoCapitalize="none"
-                />
-              </View>
+          {/* ── Tags ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Tags <Text style={styles.optionalTag}>(optional)</Text></Text>
             </View>
-          )}
+            {/* Selected tags */}
+            {tags.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {tags.map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 4,
+                      paddingHorizontal: 10, paddingVertical: 5,
+                      borderRadius: 20, borderWidth: 1,
+                      backgroundColor: hexToRgba(typeColor, 0.12),
+                      borderColor: typeColor,
+                    }}
+                    onPress={() => setTags(tags.filter(x => x !== t))}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: typeColor }}>#{t}</Text>
+                    <MaterialCommunityIcons name="close" size={13} color={typeColor} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {/* Text input to add a new tag */}
+            <View style={[styles.inputWrap, { flexDirection: 'row', alignItems: 'center' }]}>
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                value={tagInput}
+                onChangeText={setTagInput}
+                placeholder="Add a tag…"
+                placeholderTextColor={ds.text.muted}
+                selectionColor={typeColor}
+                returnKeyType="done"
+                maxLength={40}
+                autoCapitalize="none"
+                onSubmitEditing={() => {
+                  const t = tagInput.trim().toLowerCase();
+                  if (t && !tags.includes(t)) setTags([...tags, t]);
+                  setTagInput('');
+                }}
+              />
+              {tagInput.trim().length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const t = tagInput.trim().toLowerCase();
+                    if (t && !tags.includes(t)) setTags([...tags, t]);
+                    setTagInput('');
+                  }}
+                  activeOpacity={0.7}
+                  style={{ paddingLeft: 8 }}
+                >
+                  <MaterialCommunityIcons name="plus-circle" size={20} color={typeColor} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {/* Suggestions */}
+            {tagSuggestions.filter(s => !tags.includes(s)).length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 2 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {tagSuggestions.filter(s => !tags.includes(s)).map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 5,
+                        borderRadius: 20, borderWidth: 1,
+                        borderColor: ds.border.subtle,
+                        backgroundColor: ds.surface.elevated,
+                      }}
+                      onPress={() => setTags([...tags, s])}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: ds.text.muted }}>#{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
         </ScrollView>
 
         {/* ── CTA ── */}

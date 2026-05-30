@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   FlatList,
+  Switch,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -21,7 +22,10 @@ import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSavingsStore, GoalWithProgress } from '../store/savingsStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { SavingsContribution } from '../types/db';
+import { useAccountsStore } from '../store/accountsStore';
+import { useRecurringStore } from '../store/recurringStore';
+import { SavingsContribution, RecurrenceFrequency } from '../types/db';
+import { getNextRunDate } from '../db/queries/recurringQueries';
 import AppCard from '../components/AppCard';
 import ProgressBar from '../components/ProgressBar';
 import BottomSheet from '../components/BottomSheet';
@@ -46,6 +50,13 @@ const GOAL_ICONS: { icon: IconName; label: string }[] = [
 ];
 
 const GOAL_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#F43F5E', '#06B6D4'];
+
+const FREQ_OPTIONS: { value: RecurrenceFrequency; label: string }[] = [
+  { value: 'daily',   label: 'Daily'   },
+  { value: 'weekly',  label: 'Weekly'  },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'yearly',  label: 'Yearly'  },
+];
 
 const MONTHS_FULL = [
   'January','February','March','April','May','June',
@@ -325,6 +336,47 @@ function makeStyles(ds: DSType) {
     contribDivider: {
       height: StyleSheet.hairlineWidth, backgroundColor: ds.border.subtle,
     },
+
+    // Account selector chips
+    accountChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: ds.radius.full, borderWidth: 1,
+      paddingHorizontal: 12, paddingVertical: 7,
+    },
+    accountChipText: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 12, lineHeight: 16,
+    },
+    // Recurring toggle
+    toggleRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 6, marginTop: 4,
+    },
+    toggleLabel: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20, color: ds.text.primary },
+    toggleHint: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 14, color: ds.text.muted, marginTop: 1 },
+    freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+    freqChip: { borderRadius: ds.radius.full, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
+    freqChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+
+    // Recurring badge on goal card
+    recurringBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: hexToRgba(ds.primary, 0.12),
+      borderRadius: ds.radius.full, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start',
+      marginTop: 4,
+    },
+    recurringBadgeText: { fontFamily: 'Inter_500Medium', fontSize: 10, color: ds.primaryLight },
+
+    // Linked account badge on contribution row
+    linkedAccBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      alignSelf: 'flex-start',
+      borderRadius: ds.radius.full,
+      paddingHorizontal: 6, paddingVertical: 2,
+      marginTop: 2,
+    },
+    linkedAccText: {
+      fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 14,
+    },
   });
 }
 
@@ -461,24 +513,33 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
   const insets = useSafeAreaInsets();
   const { goals, activeGoalContributions, selectGoal, addContribution, deleteContribution } = useSavingsStore();
   const { currencySymbol } = useSettingsStore();
+  const { accounts, loadFromDB: loadAccounts } = useAccountsStore();
+  const { addRecurring } = useRecurringStore();
+
+  const activeAccounts = useMemo(() => accounts.filter(a => !a.is_archived), [accounts]);
 
   const goal = goals.find(g => g.id === goalId);
 
-  const [showContrib, setShowContrib] = useState(false);
-  const [amount, setAmount]           = useState('');
-  const [date, setDate]               = useState(new Date());
-  const [showCal, setShowCal]         = useState(false);
-  const [note, setNote]               = useState('');
-  const [saving, setSaving]           = useState(false);
+  const [showContrib,       setShowContrib]       = useState(false);
+  const [amount,            setAmount]            = useState('');
+  const [date,              setDate]              = useState(new Date());
+  const [showCal,           setShowCal]           = useState(false);
+  const [note,              setNote]              = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [isRecurring,       setIsRecurring]       = useState(false);
+  const [frequency,         setFrequency]         = useState<RecurrenceFrequency>('monthly');
+  const [saving,            setSaving]            = useState(false);
 
   useEffect(() => {
     selectGoal(goalId);
+    loadAccounts();
     return () => { selectGoal(null); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goalId]);
 
   const resetContribForm = () => {
-    setAmount(''); setNote(''); setDate(new Date()); setShowCal(false);
+    setAmount(''); setNote(''); setDate(new Date()); setSelectedAccountId(null);
+    setShowCal(false); setIsRecurring(false); setFrequency('monthly');
   };
 
   const handleAdd = async () => {
@@ -487,14 +548,31 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
       Alert.alert('Invalid amount', 'Enter a positive number');
       return;
     }
+    if (isRecurring && !selectedAccountId) {
+      Alert.alert('Account required', 'Select an account to deduct from when enabling recurring');
+      return;
+    }
     setSaving(true);
     try {
+      const dateStr = toDateStr(date);
       await addContribution({
         goal_id: goalId,
         amount: paise,
         notes: note.trim() || null,
-        contribution_date: toDateStr(date),
+        contribution_date: dateStr,
+        account_id: selectedAccountId,
       });
+      if (isRecurring && selectedAccountId) {
+        await addRecurring({
+          type: 'expense',
+          amount: paise,
+          account_id: selectedAccountId,
+          description: goal?.name ?? 'Savings',
+          frequency,
+          start_date: getNextRunDate(dateStr, frequency),
+          savings_goal_id: goalId,
+        });
+      }
       setShowContrib(false);
       resetContribForm();
     } catch {
@@ -505,7 +583,13 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
   };
 
   const handleDelete = (c: SavingsContribution) => {
-    Alert.alert('Delete contribution?', 'This cannot be undone.', [
+    const linkedAccName = c.account_id
+      ? (activeAccounts.find(a => a.id === c.account_id)?.name ?? null)
+      : null;
+    const revertNote = linkedAccName
+      ? `\n\nThis contribution was funded from "${linkedAccName}" — the amount will be returned to that account.`
+      : '';
+    Alert.alert('Delete contribution?', `This cannot be undone.${revertNote}`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteContribution(c.id, goalId) },
     ]);
@@ -607,27 +691,38 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
             )}
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={s.contribRow}>
-            <View style={[s.contribDot, { backgroundColor: hexToRgba(accent, 0.8) }]} />
-            <View style={s.contribBody}>
-              <Text style={[s.contribAmount, { color: accent }]}>
-                +{currencySymbol}{formatBal(item.amount)}
-              </Text>
-              {item.notes ? <Text style={s.contribNote}>{item.notes}</Text> : null}
+        renderItem={({ item }) => {
+          const linkedAccName = item.account_id
+            ? (activeAccounts.find(a => a.id === item.account_id)?.name ?? null)
+            : null;
+          return (
+            <View style={s.contribRow}>
+              <View style={[s.contribDot, { backgroundColor: hexToRgba(accent, 0.8) }]} />
+              <View style={s.contribBody}>
+                <Text style={[s.contribAmount, { color: accent }]}>
+                  +{currencySymbol}{formatBal(item.amount)}
+                </Text>
+                {item.notes ? <Text style={s.contribNote}>{item.notes}</Text> : null}
+                {linkedAccName && (
+                  <View style={[s.linkedAccBadge, { backgroundColor: hexToRgba(ds.primary, 0.1) }]}>
+                    <MaterialCommunityIcons name="bank-outline" size={10} color={ds.primary} />
+                    <Text style={[s.linkedAccText, { color: ds.primary }]}>{linkedAccName}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={s.contribMeta}>
+                <Text style={s.contribDate}>{formatDateLocal(item.contribution_date)}</Text>
+                <TouchableOpacity
+                  onPress={() => handleDelete(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={15} color={ds.text.muted} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={s.contribMeta}>
-              <Text style={s.contribDate}>{formatDateLocal(item.contribution_date)}</Text>
-              <TouchableOpacity
-                onPress={() => handleDelete(item)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialCommunityIcons name="trash-can-outline" size={15} color={ds.text.muted} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+          );
+        }}
         ItemSeparatorComponent={() => <View style={s.contribDivider} />}
       />
 
@@ -686,6 +781,97 @@ function GoalDetailView({ goalId, onBack }: GoalDetailProps) {
               numberOfLines={2}
             />
 
+            {/* Linked account (optional) */}
+            {activeAccounts.length > 0 && (
+              <>
+                <Text style={s.fieldLabel}>Deduct from account (optional)</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                >
+                  <TouchableOpacity
+                    style={[
+                      s.accountChip,
+                      selectedAccountId === null
+                        ? { backgroundColor: ds.text.muted, borderColor: ds.text.muted }
+                        : { backgroundColor: hexToRgba(ds.text.muted, 0.08), borderColor: hexToRgba(ds.text.muted, 0.3) },
+                    ]}
+                    onPress={() => setSelectedAccountId(null)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons
+                      name="close-circle-outline"
+                      size={14}
+                      color={selectedAccountId === null ? '#fff' : ds.text.muted}
+                    />
+                    <Text style={[s.accountChipText, { color: selectedAccountId === null ? '#fff' : ds.text.muted }]}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {activeAccounts.map(acc => {
+                    const selected = selectedAccountId === acc.id;
+                    return (
+                      <TouchableOpacity
+                        key={acc.id}
+                        style={[
+                          s.accountChip,
+                          selected
+                            ? { backgroundColor: ds.primary, borderColor: ds.primary }
+                            : { backgroundColor: hexToRgba(ds.primary, 0.08), borderColor: hexToRgba(ds.primary, 0.3) },
+                        ]}
+                        onPress={() => setSelectedAccountId(acc.id)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons name="bank-outline" size={14} color={selected ? '#fff' : ds.primary} />
+                        <Text style={[s.accountChipText, { color: selected ? '#fff' : ds.primary }]}>
+                          {acc.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
+
+            {/* Recurring toggle */}
+            <View style={s.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.toggleLabel}>Make it recurring</Text>
+                {isRecurring && !selectedAccountId && (
+                  <Text style={s.toggleHint}>Select an account above to enable recurring</Text>
+                )}
+              </View>
+              <Switch
+                value={isRecurring}
+                onValueChange={setIsRecurring}
+                trackColor={{ false: ds.border.subtle, true: hexToRgba(ds.primary, 0.4) }}
+                thumbColor={isRecurring ? ds.primary : ds.text.muted}
+              />
+            </View>
+            {isRecurring && (
+              <>
+                <Text style={s.fieldLabel}>Frequency</Text>
+                <View style={s.freqRow}>
+                  {FREQ_OPTIONS.map(opt => {
+                    const sel = frequency === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[s.freqChip, sel
+                          ? { backgroundColor: ds.primary, borderColor: ds.primary }
+                          : { backgroundColor: hexToRgba(ds.primary, 0.08), borderColor: hexToRgba(ds.primary, 0.3) }]}
+                        onPress={() => setFrequency(opt.value)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[s.freqChipText, { color: sel ? '#fff' : ds.primary }]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
             <TouchableOpacity
               style={[s.ctaBtn, saving && s.ctaBtnDisabled]}
               onPress={handleAdd}
@@ -710,6 +896,14 @@ export default function SavingsScreen() {
   const insets = useSafeAreaInsets();
   const { goals, isLoading, loadFromDB, addGoal, addContribution } = useSavingsStore();
   const { currencySymbol } = useSettingsStore();
+  const { accounts, loadFromDB: loadAccounts } = useAccountsStore();
+  const { items: recurringItems, loadFromDB: loadRecurring, addRecurring } = useRecurringStore();
+
+  const activeAccounts = useMemo(() => accounts.filter(a => !a.is_archived), [accounts]);
+  const recurringGoalIds = useMemo(
+    () => new Set(recurringItems.filter(r => r.savings_goal_id && r.is_active === 1).map(r => r.savings_goal_id!)),
+    [recurringItems],
+  );
 
   const [detailGoalId, setDetailGoalId] = useState<string | null>(null);
   const [showCreate, setShowCreate]     = useState(false);
@@ -724,14 +918,21 @@ export default function SavingsScreen() {
   const [creating,    setCreating]    = useState(false);
 
   // Quick-add contribution from list
-  const [addContribGoalId,  setAddContribGoalId]  = useState<string | null>(null);
-  const [addContribAmount,  setAddContribAmount]  = useState('');
-  const [addContribDate,    setAddContribDate]    = useState(new Date());
-  const [addContribNote,    setAddContribNote]    = useState('');
-  const [addContribShowCal, setAddContribShowCal] = useState(false);
-  const [addContribSaving,  setAddContribSaving]  = useState(false);
+  const [addContribGoalId,       setAddContribGoalId]       = useState<string | null>(null);
+  const [addContribAmount,       setAddContribAmount]       = useState('');
+  const [addContribDate,         setAddContribDate]         = useState(new Date());
+  const [addContribNote,         setAddContribNote]         = useState('');
+  const [addContribAccountId,    setAddContribAccountId]    = useState<string | null>(null);
+  const [addContribShowCal,      setAddContribShowCal]      = useState(false);
+  const [addContribIsRecurring,  setAddContribIsRecurring]  = useState(false);
+  const [addContribFrequency,    setAddContribFrequency]    = useState<RecurrenceFrequency>('monthly');
+  const [addContribSaving,       setAddContribSaving]       = useState(false);
 
-  useFocusEffect(useCallback(() => { loadFromDB(); }, [loadFromDB]));
+  useFocusEffect(useCallback(() => {
+    loadFromDB();
+    loadAccounts();
+    loadRecurring();
+  }, [loadFromDB, loadAccounts, loadRecurring]));
 
   // Hardware back intercept when viewing goal detail
   useEffect(() => {
@@ -783,7 +984,8 @@ export default function SavingsScreen() {
 
   const resetAddContribForm = () => {
     setAddContribAmount(''); setAddContribNote('');
-    setAddContribDate(new Date()); setAddContribShowCal(false);
+    setAddContribDate(new Date()); setAddContribAccountId(null);
+    setAddContribShowCal(false); setAddContribIsRecurring(false); setAddContribFrequency('monthly');
   };
 
   const handleQuickAdd = async () => {
@@ -793,17 +995,36 @@ export default function SavingsScreen() {
       Alert.alert('Invalid amount', 'Enter a positive number');
       return;
     }
+    if (addContribIsRecurring && !addContribAccountId) {
+      Alert.alert('Account required', 'Select an account to deduct from when enabling recurring');
+      return;
+    }
+    const goal = goals.find(g => g.id === addContribGoalId);
     setAddContribSaving(true);
     try {
+      const dateStr = toDateStr(addContribDate);
       await addContribution({
         goal_id: addContribGoalId,
         amount: paise,
         notes: addContribNote.trim() || null,
-        contribution_date: toDateStr(addContribDate),
+        contribution_date: dateStr,
+        account_id: addContribAccountId,
       });
+      if (addContribIsRecurring && addContribAccountId) {
+        await addRecurring({
+          type: 'expense',
+          amount: paise,
+          account_id: addContribAccountId,
+          description: goal?.name ?? 'Savings',
+          frequency: addContribFrequency,
+          start_date: getNextRunDate(dateStr, addContribFrequency),
+          savings_goal_id: addContribGoalId,
+        });
+      }
       setAddContribGoalId(null);
       resetAddContribForm();
       loadFromDB();
+      loadRecurring();
     } catch {
       Alert.alert('Error', 'Could not save contribution');
     } finally {
@@ -830,6 +1051,12 @@ export default function SavingsScreen() {
             </View>
             <View style={s.goalCardInfo}>
               <Text style={s.goalName}>{goal.name}</Text>
+              {recurringGoalIds.has(goal.id) && (
+                <View style={s.recurringBadge}>
+                  <MaterialCommunityIcons name="repeat" size={10} color={ds.primaryLight} />
+                  <Text style={s.recurringBadgeText}>Auto-saving</Text>
+                </View>
+              )}
               {goal.target_date && !isCompleted && (
                 <Text style={s.goalDays}>
                   {goal.daysRemaining !== null && goal.daysRemaining > 0
@@ -1002,6 +1229,96 @@ export default function SavingsScreen() {
             multiline
             numberOfLines={2}
           />
+
+          {activeAccounts.length > 0 && (
+            <>
+              <Text style={s.fieldLabel}>Deduct from account (optional)</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+              >
+                <TouchableOpacity
+                  style={[
+                    s.accountChip,
+                    addContribAccountId === null
+                      ? { backgroundColor: ds.text.muted, borderColor: ds.text.muted }
+                      : { backgroundColor: hexToRgba(ds.text.muted, 0.08), borderColor: hexToRgba(ds.text.muted, 0.3) },
+                  ]}
+                  onPress={() => setAddContribAccountId(null)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="close-circle-outline"
+                    size={14}
+                    color={addContribAccountId === null ? '#fff' : ds.text.muted}
+                  />
+                  <Text style={[s.accountChipText, { color: addContribAccountId === null ? '#fff' : ds.text.muted }]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+                {activeAccounts.map(acc => {
+                  const selected = addContribAccountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[
+                        s.accountChip,
+                        selected
+                          ? { backgroundColor: ds.primary, borderColor: ds.primary }
+                          : { backgroundColor: hexToRgba(ds.primary, 0.08), borderColor: hexToRgba(ds.primary, 0.3) },
+                      ]}
+                      onPress={() => setAddContribAccountId(acc.id)}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="bank-outline" size={14} color={selected ? '#fff' : ds.primary} />
+                      <Text style={[s.accountChipText, { color: selected ? '#fff' : ds.primary }]}>
+                        {acc.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Recurring toggle */}
+          <View style={s.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.toggleLabel}>Make it recurring</Text>
+              {addContribIsRecurring && !addContribAccountId && (
+                <Text style={s.toggleHint}>Select an account above to enable recurring</Text>
+              )}
+            </View>
+            <Switch
+              value={addContribIsRecurring}
+              onValueChange={setAddContribIsRecurring}
+              trackColor={{ false: ds.border.subtle, true: hexToRgba(ds.primary, 0.4) }}
+              thumbColor={addContribIsRecurring ? ds.primary : ds.text.muted}
+            />
+          </View>
+          {addContribIsRecurring && (
+            <>
+              <Text style={s.fieldLabel}>Frequency</Text>
+              <View style={s.freqRow}>
+                {FREQ_OPTIONS.map(opt => {
+                  const sel = addContribFrequency === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[s.freqChip, sel
+                        ? { backgroundColor: ds.primary, borderColor: ds.primary }
+                        : { backgroundColor: hexToRgba(ds.primary, 0.08), borderColor: hexToRgba(ds.primary, 0.3) }]}
+                      onPress={() => setAddContribFrequency(opt.value)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.freqChipText, { color: sel ? '#fff' : ds.primary }]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
           <TouchableOpacity
             style={[s.ctaBtn, addContribSaving && s.ctaBtnDisabled]}

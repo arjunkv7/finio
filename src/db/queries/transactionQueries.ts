@@ -81,9 +81,10 @@ export async function getTransactions(filter?: TransactionFilter): Promise<Trans
     conditions.push('trip_id = ?');
     params.push(filter.trip_id);
   }
-  if (filter?.tag) {
-    conditions.push('tag = ?');
-    params.push(filter.tag);
+  if (filter?.tags && filter.tags.length > 0) {
+    const tagSql = filter.tags.map(() => `(',' || COALESCE(tag,'') || ',') LIKE ('%,' || ? || ',%')`).join(' OR ');
+    conditions.push(`(${tagSql})`);
+    params.push(...filter.tags);
   }
   if (filter?.search) {
     conditions.push('(description LIKE ? OR notes LIKE ?)');
@@ -115,7 +116,11 @@ export async function getTransactionsPaginated(
   if (filter.start_date) { conditions.push('transaction_date >= ?'); params.push(filter.start_date); }
   if (filter.end_date) { conditions.push('transaction_date <= ?'); params.push(filter.end_date); }
   if (filter.trip_id) { conditions.push('trip_id = ?'); params.push(filter.trip_id); }
-  if (filter.tag) { conditions.push('tag = ?'); params.push(filter.tag); }
+  if (filter.tags && filter.tags.length > 0) {
+    const tagSql = filter.tags.map(() => `(',' || COALESCE(tag,'') || ',') LIKE ('%,' || ? || ',%')`).join(' OR ');
+    conditions.push(`(${tagSql})`);
+    params.push(...filter.tags);
+  }
   if (filter.search) {
     conditions.push('(description LIKE ? OR notes LIKE ?)');
     params.push(`%${filter.search}%`, `%${filter.search}%`);
@@ -276,7 +281,11 @@ export async function getFilteredSummary(
   if (filter.start_date) { conditions.push('transaction_date >= ?'); params.push(filter.start_date); }
   if (filter.end_date) { conditions.push('transaction_date <= ?'); params.push(filter.end_date); }
   if (filter.trip_id) { conditions.push('trip_id = ?'); params.push(filter.trip_id); }
-  if (filter.tag) { conditions.push('tag = ?'); params.push(filter.tag); }
+  if (filter.tags && filter.tags.length > 0) {
+    const tagSql = filter.tags.map(() => `(',' || COALESCE(tag,'') || ',') LIKE ('%,' || ? || ',%')`).join(' OR ');
+    conditions.push(`(${tagSql})`);
+    params.push(...filter.tags);
+  }
   if (filter.search) {
     conditions.push('(description LIKE ? OR notes LIKE ?)');
     params.push(`%${filter.search}%`, `%${filter.search}%`);
@@ -296,13 +305,28 @@ export async function getFilteredSummary(
 }
 
 export async function getDistinctExpenseTags(): Promise<string[]> {
+  return getDistinctTagsByType('expense');
+}
+
+export async function getDistinctTagsByType(type: string): Promise<string[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ tag: string }>(
-    `SELECT DISTINCT tag FROM transactions
-     WHERE type = 'expense' AND tag IS NOT NULL AND tag != '' AND is_deleted = 0
-     ORDER BY tag ASC`
+    `SELECT tag FROM transactions
+     WHERE type = ? AND tag IS NOT NULL AND tag != '' AND is_deleted = 0`,
+    [type]
   );
-  return rows.map(r => r.tag);
+  const all = rows.flatMap(r => r.tag.split(',').map(t => t.trim()).filter(Boolean));
+  return [...new Set(all)].sort();
+}
+
+export async function getDistinctAllTags(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ tag: string }>(
+    `SELECT tag FROM transactions
+     WHERE tag IS NOT NULL AND tag != '' AND is_deleted = 0`
+  );
+  const all = rows.flatMap(r => r.tag.split(',').map(t => t.trim()).filter(Boolean));
+  return [...new Set(all)].sort();
 }
 
 // Last N months income vs expense for trend chart

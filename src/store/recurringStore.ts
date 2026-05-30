@@ -14,6 +14,8 @@ import {
   getNextRunDate,
 } from '../db/queries/recurringQueries';
 import { createTransaction } from '../db/queries/transactionQueries';
+import { addContribution } from '../db/queries/savingsQueries';
+import { addInvestmentContribution } from '../db/queries/investmentContributionQueries';
 
 function todayStr(): string {
   const d = new Date();
@@ -69,17 +71,33 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
       let runDate = recurring.next_run_date;
 
       while (runDate <= today) {
-        await createTransaction({
-          type: recurring.type,
-          amount: recurring.amount,
-          account_id: recurring.account_id,
-          category_id: recurring.category_id,
-          description: recurring.description,
-          notes: recurring.notes,
-          transaction_date: runDate,
-          transaction_time: recurring.time_of_day,
-          is_recurring: 1,
-        });
+        if (recurring.savings_goal_id) {
+          await addContribution({
+            goal_id: recurring.savings_goal_id,
+            amount: recurring.amount,
+            contribution_date: runDate,
+            account_id: recurring.account_id,
+          });
+        } else if (recurring.investment_id) {
+          await addInvestmentContribution({
+            investment_id: recurring.investment_id,
+            amount: recurring.amount,
+            contribution_date: runDate,
+            account_id: recurring.account_id,
+          });
+        } else {
+          await createTransaction({
+            type: recurring.type,
+            amount: recurring.amount,
+            account_id: recurring.account_id,
+            category_id: recurring.category_id,
+            description: recurring.description,
+            notes: recurring.notes,
+            transaction_date: runDate,
+            transaction_time: recurring.time_of_day,
+            is_recurring: 1,
+          });
+        }
         count++;
         runDate = getNextRunDate(runDate, recurring.frequency);
       }

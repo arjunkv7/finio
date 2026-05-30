@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 12;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -155,6 +155,75 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
     }
     await setSchemaVersion(db, 8);
   }
+  if (from < 9) {
+    await db.execAsync(`ALTER TABLE investments ADD COLUMN account_id TEXT REFERENCES accounts(id);`);
+    await db.execAsync(`ALTER TABLE investments ADD COLUMN linked_transaction_id TEXT REFERENCES transactions(id);`);
+    await setSchemaVersion(db, 9);
+  }
+  if (from < 10) {
+    await db.execAsync(`ALTER TABLE savings_contributions ADD COLUMN account_id TEXT REFERENCES accounts(id);`);
+    await db.execAsync(`ALTER TABLE savings_contributions ADD COLUMN linked_transaction_id TEXT REFERENCES transactions(id);`);
+    await setSchemaVersion(db, 10);
+  }
+  if (from < 11) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS investment_contributions (
+        id                     TEXT    PRIMARY KEY,
+        investment_id          TEXT    NOT NULL REFERENCES investments(id),
+        amount                 INTEGER NOT NULL,
+        notes                  TEXT,
+        contribution_date      TEXT    NOT NULL,
+        account_id             TEXT             REFERENCES accounts(id),
+        linked_transaction_id  TEXT             REFERENCES transactions(id),
+        created_at             TEXT    NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_investment_contributions_investment_id
+        ON investment_contributions(investment_id);
+    `);
+    await db.execAsync(`ALTER TABLE recurring_transactions ADD COLUMN savings_goal_id TEXT REFERENCES savings_goals(id);`);
+    await db.execAsync(`ALTER TABLE recurring_transactions ADD COLUMN investment_id TEXT REFERENCES investments(id);`);
+    await setSchemaVersion(db, 11);
+  }
+  if (from < 12) {
+    const now = new Date().toISOString();
+    // New income categories
+    const newIncome: [string, string, string, number][] = [
+      ['Bonus',       'cash-multiple', '#FFD54F', 6],
+      ['Interest',    'bank',          '#26C6DA', 7],
+      ['Investments', 'trending-up',   '#42A5F5', 8],
+    ];
+    for (const [name, icon, color, sort_order] of newIncome) {
+      await db.runAsync(
+        `INSERT INTO categories (id, name, type, icon, color, is_system, sort_order, created_at)
+         SELECT ?, ?, 'income', ?, ?, 1, ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM categories WHERE name = ? AND type = 'income' AND is_deleted = 0
+         )`,
+        [uuidv4(), name, icon, color, sort_order, now, name]
+      );
+    }
+    // New expense categories
+    const newExpense: [string, string, string, number][] = [
+      ['Groceries',     'cart',          '#4CAF50', 9],
+      ['Travel',        'airplane',      '#42A5F5', 10],
+      ['Personal Care', 'content-cut',   '#EC407A', 11],
+      ['Clothing',      'tshirt-crew',   '#FF7043', 12],
+      ['Subscriptions', 'television',    '#26C6DA', 13],
+      ['Gym & Fitness', 'dumbbell',      '#66BB6A', 14],
+      ['Fuel',          'gas-station',   '#FFA726', 15],
+    ];
+    for (const [name, icon, color, sort_order] of newExpense) {
+      await db.runAsync(
+        `INSERT INTO categories (id, name, type, icon, color, is_system, sort_order, created_at)
+         SELECT ?, ?, 'expense', ?, ?, 1, ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM categories WHERE name = ? AND type = 'expense' AND is_deleted = 0
+         )`,
+        [uuidv4(), name, icon, color, sort_order, now, name]
+      );
+    }
+    await setSchemaVersion(db, 12);
+  }
 }
 
 // ─── Schema creation ─────────────────────────────────────────────────────────
@@ -238,24 +307,28 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS savings_contributions (
-      id                TEXT    PRIMARY KEY,
-      goal_id           TEXT    NOT NULL REFERENCES savings_goals(id),
-      amount            INTEGER NOT NULL,
-      notes             TEXT,
-      contribution_date TEXT    NOT NULL,
-      created_at        TEXT    NOT NULL
+      id                     TEXT    PRIMARY KEY,
+      goal_id                TEXT    NOT NULL REFERENCES savings_goals(id),
+      amount                 INTEGER NOT NULL,
+      notes                  TEXT,
+      contribution_date      TEXT    NOT NULL,
+      account_id             TEXT             REFERENCES accounts(id),
+      linked_transaction_id  TEXT             REFERENCES transactions(id),
+      created_at             TEXT    NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS investments (
-      id               TEXT    PRIMARY KEY,
-      asset_name       TEXT    NOT NULL,
-      asset_type       TEXT    NOT NULL,
-      amount_invested  INTEGER NOT NULL,
-      investment_date  TEXT    NOT NULL,
-      notes            TEXT,
-      is_deleted       INTEGER NOT NULL DEFAULT 0,
-      created_at       TEXT    NOT NULL,
-      updated_at       TEXT    NOT NULL
+      id                     TEXT    PRIMARY KEY,
+      asset_name             TEXT    NOT NULL,
+      asset_type             TEXT    NOT NULL,
+      amount_invested        INTEGER NOT NULL,
+      investment_date        TEXT    NOT NULL,
+      notes                  TEXT,
+      account_id             TEXT             REFERENCES accounts(id),
+      linked_transaction_id  TEXT             REFERENCES transactions(id),
+      is_deleted             INTEGER NOT NULL DEFAULT 0,
+      created_at             TEXT    NOT NULL,
+      updated_at             TEXT    NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS trips (
@@ -336,19 +409,32 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS recurring_transactions (
-      id            TEXT    PRIMARY KEY,
-      type          TEXT    NOT NULL,
-      amount        INTEGER NOT NULL,
-      account_id    TEXT    NOT NULL REFERENCES accounts(id),
-      category_id   TEXT             REFERENCES categories(id),
-      description   TEXT,
-      notes         TEXT,
-      frequency     TEXT    NOT NULL,
-      next_run_date TEXT    NOT NULL,
-      time_of_day   TEXT    NOT NULL DEFAULT '09:00',
-      is_active     INTEGER NOT NULL DEFAULT 1,
-      created_at    TEXT    NOT NULL,
-      updated_at    TEXT    NOT NULL
+      id               TEXT    PRIMARY KEY,
+      type             TEXT    NOT NULL,
+      amount           INTEGER NOT NULL,
+      account_id       TEXT    NOT NULL REFERENCES accounts(id),
+      category_id      TEXT             REFERENCES categories(id),
+      description      TEXT,
+      notes            TEXT,
+      frequency        TEXT    NOT NULL,
+      next_run_date    TEXT    NOT NULL,
+      time_of_day      TEXT    NOT NULL DEFAULT '09:00',
+      is_active        INTEGER NOT NULL DEFAULT 1,
+      savings_goal_id  TEXT             REFERENCES savings_goals(id),
+      investment_id    TEXT             REFERENCES investments(id),
+      created_at       TEXT    NOT NULL,
+      updated_at       TEXT    NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS investment_contributions (
+      id                     TEXT    PRIMARY KEY,
+      investment_id          TEXT    NOT NULL REFERENCES investments(id),
+      amount                 INTEGER NOT NULL,
+      notes                  TEXT,
+      contribution_date      TEXT    NOT NULL,
+      account_id             TEXT             REFERENCES accounts(id),
+      linked_transaction_id  TEXT             REFERENCES transactions(id),
+      created_at             TEXT    NOT NULL
     );
   `);
 }
@@ -380,6 +466,9 @@ async function createIndexes(db: SQLite.SQLiteDatabase): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_budgets_category_id
       ON budgets(category_id);
+
+    CREATE INDEX IF NOT EXISTS idx_investment_contributions_investment_id
+      ON investment_contributions(investment_id);
 
     CREATE INDEX IF NOT EXISTS idx_recurring_next_run_date
       ON recurring_transactions(next_run_date, is_active);
@@ -418,48 +507,53 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     );
 
     // Income categories
-    const incomeCategories: [string, string, number][] = [
-      ['Salary',     'cash-register', 0],
-      ['Freelance',  'laptop',        1],
-      ['Business',   'briefcase',     2],
-      ['Rental',     'home',          3],
-      ['Dividends',  'chart-line',    4],
-      ['Other',      'dots-horizontal', 5],
+    const incomeCategories: [string, string, string][] = [
+      ['Salary',      'cash-register',   '#00E676'],
+      ['Freelance',   'laptop',          '#00BCD4'],
+      ['Business',    'briefcase',       '#FF9800'],
+      ['Bonus',       'cash-multiple',   '#FFD54F'],
+      ['Rental',      'home',            '#9C7EF0'],
+      ['Dividends',   'chart-line',      '#F06292'],
+      ['Interest',    'bank',            '#26C6DA'],
+      ['Investments', 'trending-up',     '#42A5F5'],
+      ['Other',       'dots-horizontal', '#A0A0A0'],
     ];
-    const incomeColors = ['#00E676', '#00BCD4', '#FF9800', '#9C7EF0', '#FFB74D', '#A0A0A0'];
 
     for (let i = 0; i < incomeCategories.length; i++) {
-      const [name, icon, sort_order] = incomeCategories[i];
+      const [name, icon, color] = incomeCategories[i];
       await db.runAsync(
         `INSERT INTO categories (id, name, type, icon, color, is_system, sort_order, created_at)
          VALUES (?, ?, 'income', ?, ?, 1, ?, ?)`,
-        [uuidv4(), name, icon, incomeColors[i], sort_order, now]
+        [uuidv4(), name, icon, color, i, now]
       );
     }
 
     // Expense categories
-    const expenseCategories: [string, string, number][] = [
-      ['Food & Dining',    'food',             0],
-      ['Transport',        'car',              1],
-      ['Housing',          'home-city',        2],
-      ['Health',           'medical-bag',      3],
-      ['Entertainment',    'movie-open',       4],
-      ['Shopping',         'shopping',         5],
-      ['Bills & Utilities','lightning-bolt',   6],
-      ['Education',        'school',           7],
-      ['Other',            'dots-horizontal',  8],
-    ];
-    const expenseColors = [
-      '#FF6B6B', '#FF9800', '#9C7EF0', '#00E676',
-      '#E040FB', '#00BCD4', '#FFB74D', '#2196F3', '#A0A0A0',
+    const expenseCategories: [string, string, string][] = [
+      ['Food & Dining',    'food',             '#FF6B6B'],
+      ['Groceries',        'cart',             '#4CAF50'],
+      ['Transport',        'car',              '#FF9800'],
+      ['Fuel',             'gas-station',      '#FFA726'],
+      ['Housing',          'home-city',        '#9C7EF0'],
+      ['Health',           'medical-bag',      '#00E676'],
+      ['Gym & Fitness',    'dumbbell',         '#66BB6A'],
+      ['Entertainment',    'movie-open',       '#E040FB'],
+      ['Subscriptions',    'television',       '#26C6DA'],
+      ['Shopping',         'shopping',         '#00BCD4'],
+      ['Clothing',         'tshirt-crew',      '#FF7043'],
+      ['Personal Care',    'content-cut',      '#EC407A'],
+      ['Bills & Utilities','lightning-bolt',   '#FFB74D'],
+      ['Education',        'school',           '#2196F3'],
+      ['Travel',           'airplane',         '#42A5F5'],
+      ['Other',            'dots-horizontal',  '#A0A0A0'],
     ];
 
     for (let i = 0; i < expenseCategories.length; i++) {
-      const [name, icon, sort_order] = expenseCategories[i];
+      const [name, icon, color] = expenseCategories[i];
       await db.runAsync(
         `INSERT INTO categories (id, name, type, icon, color, is_system, sort_order, created_at)
          VALUES (?, ?, 'expense', ?, ?, 1, ?, ?)`,
-        [uuidv4(), name, icon, expenseColors[i], sort_order, now]
+        [uuidv4(), name, icon, color, i, now]
       );
     }
   });
