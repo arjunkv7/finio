@@ -26,6 +26,10 @@ import {
   getActiveAccounts,
   getAccountBalance,
   getAllInvestments,
+  getAllSavingsGoals,
+  getTotalContributed,
+  getAllTrips,
+  getTripTotal,
 } from '../db/queries';
 import AppCard from '../components/AppCard';
 import BottomSheet from '../components/BottomSheet';
@@ -59,14 +63,14 @@ const EXPORT_CARDS: {
     icon: 'microsoft-excel',
     color: '#10B981',
     label: 'Export as Excel',
-    description: '5-sheet workbook: transactions, monthly summary, categories, accounts & investments',
+    description: '8-sheet workbook: summary dashboard, transactions, monthly breakdown, categories, accounts, investments, savings goals & trips',
   },
   {
     type: 'pdf',
     icon: 'file-pdf-box',
     color: '#F43F5E',
     label: 'Export as PDF',
-    description: 'Formatted report with monthly breakdown, category chart & savings goals',
+    description: 'Formatted report with summary stats, spending breakdown, accounts, savings goals & investments',
   },
   {
     type: 'csv',
@@ -282,11 +286,13 @@ export default function ExportScreen() {
     setGeneratingType('excel');
     try {
       const filter = getDateFilter(dateRange, customYear, customMonth);
-      const [transactions, categories, accounts, investments] = await Promise.all([
+      const [transactions, categories, accounts, investments, trips, savingsGoals] = await Promise.all([
         getTransactions(filter),
         getAllCategories(),
         getActiveAccounts(),
         getAllInvestments(),
+        getAllTrips(),
+        getAllSavingsGoals(),
       ]);
 
       const catMap: Record<string, string> = {};
@@ -295,28 +301,128 @@ export default function ExportScreen() {
       const accMap: Record<string, string> = {};
       for (const a of accounts) accMap[a.id] = a.name;
 
-      const accountsWithBalance = await Promise.all(
-        accounts.map(async a => ({ ...a, balance: await getAccountBalance(a.id) }))
-      );
+      const tripMap: Record<string, string> = {};
+      for (const t of trips) tripMap[t.id] = t.name;
+
+      const [accountsWithBalance, tripsWithTotal, goalsWithProgress] = await Promise.all([
+        Promise.all(accounts.map(async a => ({ ...a, balance: await getAccountBalance(a.id) }))),
+        Promise.all(trips.map(async t => ({ ...t, total: await getTripTotal(t.id) }))),
+        Promise.all(savingsGoals.map(async g => {
+          const contributed = await getTotalContributed(g.id);
+          const percent = g.target_amount > 0 ? Math.min(100, Math.round((contributed / g.target_amount) * 100)) : 0;
+          return { ...g, contributed, percent };
+        })),
+      ]);
+
+      // Pre-compute aggregates (reused across Summary + By Category sheets)
+      let summaryIncome = 0, summaryExpenses = 0;
+      const byCat: Record<string, number> = {};
+      for (const tx of transactions) {
+        if (tx.type === 'income') summaryIncome += tx.amount;
+        else if (tx.type === 'expense') {
+          summaryExpenses += tx.amount;
+          if (tx.category_id) {
+            const name = catMap[tx.category_id] ?? 'Unknown';
+            byCat[name] = (byCat[name] ?? 0) + tx.amount;
+          }
+        }
+      }
+      const summaryNet          = summaryIncome - summaryExpenses;
+      const savingsRate         = summaryIncome > 0 ? Math.round((summaryNet / summaryIncome) * 100) : 0;
+      const totalAccountBalance = accountsWithBalance.reduce((s, a) => s + a.balance, 0);
+      const totalInvestedAmt    = investments.reduce((s, i) => s + i.total_amount, 0);
+      const investByType: Record<string, number> = {};
+      for (const i of investments) {
+        const typeName = i.asset_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        investByType[typeName] = (investByType[typeName] ?? 0) + i.total_amount;
+      }
+      const totalTargetSavings  = savingsGoals.reduce((s, g) => s + g.target_amount, 0);
+      const totalContributedAll = goalsWithProgress.reduce((s, g) => s + g.contributed, 0);
+      const completedGoals      = goalsWithProgress.filter(g => g.is_completed).length;
+      const totalTripExpenses   = tripsWithTotal.reduce((s, t) => s + t.total, 0);
+      const settledTrips        = tripsWithTotal.filter(t => t.is_settled).length;
+      const overallGoalProgress = totalTargetSavings > 0
+        ? Math.min(100, Math.round((totalContributedAll / totalTargetSavings) * 100)) : 0;
+
+      const rangeLabel = dateRange === 'custom'
+        ? `${MONTHS_SHORT[customMonth - 1]} ${customYear}`
+        : DATE_RANGE_LABELS[dateRange];
 
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: Transactions
+      // Sheet 1: Summary dashboard (all key metrics in one place)
+      const topCats = Object.entries(byCat).sort(([, a], [, b]) => b - a).slice(0, 10);
+      const summaryAoa: (string | number)[][] = [
+        ['FINIO — FINANCIAL SUMMARY'],
+        [`Period: ${rangeLabel}`, '', `Generated: ${new Date().toLocaleDateString()}`],
+        [],
+        ['INCOME & EXPENSES', 'Value'],
+        ['Total Income',    fmt(summaryIncome)],
+        ['Total Expenses',  fmt(summaryExpenses)],
+        ['Net Savings',     fmt(summaryNet)],
+        ['Savings Rate',    `${savingsRate}%`],
+        ['Transactions',   transactions.filter(t => t.type !== 'transfer').length],
+        [],
+        ['ACCOUNTS', 'Type', 'Opening Balance', 'Current Balance'],
+        ...accountsWithBalance.map(a => [
+          a.name,
+          a.type.charAt(0).toUpperCase() + a.type.slice(1),
+          fmt(a.opening_balance),
+          fmt(a.balance),
+        ]),
+        ['TOTAL', '', '', fmt(totalAccountBalance)],
+        [],
+        ['INVESTMENTS', 'Value'],
+        ['Total Portfolio Value', fmt(totalInvestedAmt)],
+        ['Number of Investments', investments.length],
+        [],
+        ['By Asset Type', 'Total Value'],
+        ...Object.entries(investByType).sort(([, a], [, b]) => b - a).map(([type, total]) => [type, fmt(total)]),
+        [],
+        ['SAVINGS GOALS', 'Value'],
+        ['Total Goals',         savingsGoals.length],
+        ['Completed',           completedGoals],
+        ['In Progress',         savingsGoals.length - completedGoals],
+        ['Total Target Amount', fmt(totalTargetSavings)],
+        ['Total Contributed',   fmt(totalContributedAll)],
+        ['Overall Progress',    `${overallGoalProgress}%`],
+        [],
+        ['TRIPS', 'Value'],
+        ['Total Trips',         trips.length],
+        ['Settled',             settledTrips],
+        ['Active',              trips.length - settledTrips],
+        ['Total Trip Expenses', fmt(totalTripExpenses)],
+        [],
+        ['TOP SPENDING CATEGORIES (Period)', 'Amount'],
+        ...topCats.map(([cat, total]) => [cat, fmt(total)]),
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryAoa), 'Summary');
+
+      // Sheet 2: Transactions
       const txRows = transactions.map(tx => ({
-        Date:        tx.transaction_date,
-        Type:        tx.type.charAt(0).toUpperCase() + tx.type.slice(1),
-        Category:    tx.category_id ? (catMap[tx.category_id] ?? '') : '',
-        Account:     accMap[tx.account_id] ?? '',
-        Amount:      fmt(tx.amount),
-        Description: tx.description ?? '',
+        Date:          tx.transaction_date,
+        Time:          tx.transaction_time ?? '',
+        Type:          tx.type.charAt(0).toUpperCase() + tx.type.slice(1),
+        Category:      tx.category_id ? (catMap[tx.category_id] ?? '') : '',
+        Account:       accMap[tx.account_id] ?? '',
+        'To Account':  tx.to_account_id ? (accMap[tx.to_account_id] ?? '') : '',
+        Amount:        fmt(tx.amount),
+        Description:   tx.description ?? '',
+        Notes:         tx.notes ?? '',
+        Tag:           tx.tag ?? '',
+        Trip:          tx.trip_id ? (tripMap[tx.trip_id] ?? '') : '',
+        Recurring:     tx.is_recurring ? 'Yes' : 'No',
       }));
       XLSX.utils.book_append_sheet(
         wb,
-        XLSX.utils.json_to_sheet(txRows.length ? txRows : [{ Date: '', Type: '', Category: '', Account: '', Amount: '', Description: 'No transactions in range' }]),
+        XLSX.utils.json_to_sheet(txRows.length ? txRows : [{
+          Date: '', Time: '', Type: '', Category: '', Account: '', 'To Account': '',
+          Amount: '', Description: 'No transactions in range', Notes: '', Tag: '', Trip: '', Recurring: '',
+        }]),
         'Transactions'
       );
 
-      // Sheet 2: Monthly Summary — group transactions by YYYY-MM
+      // Sheet 3: Monthly Summary — group transactions by YYYY-MM
       const byMonth: Record<string, { income: number; expenses: number }> = {};
       for (const tx of transactions) {
         if (tx.type === 'transfer') continue;
@@ -339,13 +445,7 @@ export default function ExportScreen() {
         'Monthly Summary'
       );
 
-      // Sheet 3: By Category (expenses only)
-      const byCat: Record<string, number> = {};
-      for (const tx of transactions) {
-        if (tx.type !== 'expense' || !tx.category_id) continue;
-        const name = catMap[tx.category_id] ?? 'Unknown';
-        byCat[name] = (byCat[name] ?? 0) + tx.amount;
-      }
+      // Sheet 4: By Category (expenses only)
       const catRows = Object.entries(byCat)
         .sort(([, a], [, b]) => b - a)
         .map(([cat, total]) => ({ Category: cat, 'Total Spent': fmt(total) }));
@@ -355,29 +455,71 @@ export default function ExportScreen() {
         'By Category'
       );
 
-      // Sheet 4: Accounts
+      // Sheet 5: Accounts
       const accRows = accountsWithBalance.map(a => ({
         Name:              a.name,
         Type:              a.type.charAt(0).toUpperCase() + a.type.slice(1),
+        'Opening Balance': fmt(a.opening_balance),
         'Current Balance': fmt(a.balance),
       }));
       XLSX.utils.book_append_sheet(
         wb,
-        XLSX.utils.json_to_sheet(accRows.length ? accRows : [{ Name: 'No accounts', Type: '', 'Current Balance': '0.00' }]),
+        XLSX.utils.json_to_sheet(accRows.length ? accRows : [{ Name: 'No accounts', Type: '', 'Opening Balance': '0.00', 'Current Balance': '0.00' }]),
         'Accounts'
       );
 
-      // Sheet 5: Investments
+      // Sheet 6: Investments (total_amount includes all top-up contributions)
       const invRows = investments.map(i => ({
-        'Asset Name': i.asset_name,
-        Type:         i.asset_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-        Amount:       fmt(i.amount_invested),
-        Date:         i.investment_date,
+        'Asset Name':            i.asset_name,
+        Type:                    i.asset_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        'Initial Amount':        fmt(i.amount_invested),
+        'Total (incl. top-ups)': fmt(i.total_amount),
+        Date:                    i.investment_date,
+        Account:                 i.account_id ? (accMap[i.account_id] ?? '') : '',
+        Notes:                   i.notes ?? '',
       }));
       XLSX.utils.book_append_sheet(
         wb,
-        XLSX.utils.json_to_sheet(invRows.length ? invRows : [{ 'Asset Name': 'No investments', Type: '', Amount: '0.00', Date: '' }]),
+        XLSX.utils.json_to_sheet(invRows.length ? invRows : [{
+          'Asset Name': 'No investments', Type: '', 'Initial Amount': '0.00',
+          'Total (incl. top-ups)': '0.00', Date: '', Account: '', Notes: '',
+        }]),
         'Investments'
+      );
+
+      // Sheet 7: Savings Goals
+      const goalsRows = goalsWithProgress.map(g => ({
+        Name:            g.name,
+        'Target Amount': fmt(g.target_amount),
+        Contributed:     fmt(g.contributed),
+        '% Complete':    g.percent,
+        'Target Date':   g.target_date ?? '',
+        Status:          g.is_completed ? 'Completed' : 'In Progress',
+      }));
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(goalsRows.length ? goalsRows : [{
+          Name: 'No savings goals', 'Target Amount': '0.00', Contributed: '0.00',
+          '% Complete': 0, 'Target Date': '', Status: '',
+        }]),
+        'Savings Goals'
+      );
+
+      // Sheet 8: Trips
+      const tripSheetRows = tripsWithTotal.map(t => ({
+        Name:          t.name,
+        Description:   t.description ?? '',
+        'Start Date':  t.start_date ?? '',
+        'End Date':    t.end_date ?? '',
+        'Total Spent': fmt(t.total),
+        Status:        t.is_settled ? 'Settled' : 'Active',
+      }));
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(tripSheetRows.length ? tripSheetRows : [{
+          Name: 'No trips', Description: '', 'Start Date': '', 'End Date': '', 'Total Spent': '0.00', Status: '',
+        }]),
+        'Trips'
       );
 
       const base64   = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
@@ -406,26 +548,34 @@ export default function ExportScreen() {
     setGeneratingType('csv');
     try {
       const filter = getDateFilter(dateRange, customYear, customMonth);
-      const [transactions, categories, accounts] = await Promise.all([
+      const [transactions, categories, accounts, trips] = await Promise.all([
         getTransactions(filter),
         getAllCategories(),
         getActiveAccounts(),
+        getAllTrips(),
       ]);
 
       const catMap: Record<string, string> = {};
       for (const c of categories) catMap[c.id] = c.name;
       const accMap: Record<string, string> = {};
       for (const a of accounts) accMap[a.id] = a.name;
+      const tripMap: Record<string, string> = {};
+      for (const t of trips) tripMap[t.id] = t.name;
 
       const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-      const header = 'Date,Type,Category,Account,Amount,Description';
+      const header = 'Date,Time,Type,Category,Account,To Account,Amount,Description,Notes,Tag,Trip';
       const rows = transactions.map(tx => [
         tx.transaction_date,
+        tx.transaction_time ?? '',
         tx.type,
         esc(tx.category_id ? (catMap[tx.category_id] ?? '') : ''),
         esc(accMap[tx.account_id] ?? ''),
+        esc(tx.to_account_id ? (accMap[tx.to_account_id] ?? '') : ''),
         fmt(tx.amount),
         esc(tx.description ?? ''),
+        esc(tx.notes ?? ''),
+        esc(tx.tag ?? ''),
+        esc(tx.trip_id ? (tripMap[tx.trip_id] ?? '') : ''),
       ].join(','));
 
       const csv      = [header, ...rows].join('\n');
@@ -450,10 +600,12 @@ export default function ExportScreen() {
     setGeneratingType('pdf');
     try {
       const filter = getDateFilter(dateRange, customYear, customMonth);
-      const [transactions, categories, accounts] = await Promise.all([
+      const [transactions, categories, accounts, investments, savingsGoals] = await Promise.all([
         getTransactions(filter),
         getAllCategories(),
         getActiveAccounts(),
+        getAllInvestments(),
+        getAllSavingsGoals(),
       ]);
 
       const catMap: Record<string, string> = {};
@@ -472,6 +624,15 @@ export default function ExportScreen() {
         }
       }
 
+      const [accountsWithBalance, goalsWithProgress] = await Promise.all([
+        Promise.all(accounts.map(async a => ({ ...a, balance: await getAccountBalance(a.id) }))),
+        Promise.all(savingsGoals.map(async g => {
+          const contributed = await getTotalContributed(g.id);
+          const percent = g.target_amount > 0 ? Math.min(100, Math.round((contributed / g.target_amount) * 100)) : 0;
+          return { ...g, contributed, percent };
+        })),
+      ]);
+
       const label = dateRange === 'custom'
         ? `${MONTHS_SHORT[customMonth - 1]} ${customYear}`
         : DATE_RANGE_LABELS[dateRange];
@@ -487,7 +648,31 @@ export default function ExportScreen() {
           <td>${tx.type}</td>
           <td>${tx.category_id ? (catMap[tx.category_id] ?? '') : ''}</td>
           <td class="right">${fmt(tx.amount)}</td>
-          <td>${tx.description ?? ''}</td>
+          <td>${tx.description ?? ''}${tx.tag ? ` [${tx.tag}]` : ''}</td>
+        </tr>`).join('');
+
+      const accRowsHtml = accountsWithBalance
+        .map(a => `<tr>
+          <td>${a.name}</td>
+          <td>${a.type.charAt(0).toUpperCase() + a.type.slice(1)}</td>
+          <td class="right">${fmt(a.balance)}</td>
+        </tr>`).join('');
+
+      const goalsRowsHtml = goalsWithProgress
+        .map(g => `<tr>
+          <td>${g.name}</td>
+          <td class="right">${fmt(g.target_amount)}</td>
+          <td class="right">${fmt(g.contributed)}</td>
+          <td class="right">${g.percent}%</td>
+          <td>${g.is_completed ? 'Completed' : 'In Progress'}</td>
+        </tr>`).join('');
+
+      const invRowsHtml = investments
+        .map(i => `<tr>
+          <td>${i.asset_name}</td>
+          <td>${i.asset_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</td>
+          <td class="right">${fmt(i.total_amount)}</td>
+          <td>${i.account_id ? (accMap[i.account_id] ?? '') : ''}</td>
         </tr>`).join('');
 
       const net = totalIncome - totalExpenses;
@@ -520,6 +705,18 @@ export default function ExportScreen() {
         <h2>Recent Transactions</h2>
         <table><tr><th>Date</th><th>Type</th><th>Category</th><th class="right">Amount</th><th>Description</th></tr>
           ${txRowsHtml || '<tr><td colspan="5">No transactions</td></tr>'}
+        </table>
+        <h2>Accounts</h2>
+        <table><tr><th>Name</th><th>Type</th><th class="right">Balance</th></tr>
+          ${accRowsHtml || '<tr><td colspan="3">No accounts</td></tr>'}
+        </table>
+        <h2>Savings Goals</h2>
+        <table><tr><th>Name</th><th class="right">Target</th><th class="right">Contributed</th><th class="right">Progress</th><th>Status</th></tr>
+          ${goalsRowsHtml || '<tr><td colspan="5">No savings goals</td></tr>'}
+        </table>
+        <h2>Investments</h2>
+        <table><tr><th>Asset</th><th>Type</th><th class="right">Total Value</th><th>Account</th></tr>
+          ${invRowsHtml || '<tr><td colspan="4">No investments</td></tr>'}
         </table>
         <div class="footer">Generated by Finio</div>
       </body></html>`;
