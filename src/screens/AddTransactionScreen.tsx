@@ -1116,6 +1116,7 @@ export default function AddTransactionScreen() {
   });
   const [description, setDescription] = useState(() => editTx?.description ?? '');
   const [notes, setNotes]             = useState(() => editTx?.notes ?? '');
+  const [tag, setTag]                 = useState(() => editTx?.tag ?? '');
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
@@ -1153,6 +1154,7 @@ export default function AddTransactionScreen() {
     setTxType(t);
     setCategoryId(null);
     setCategoryError('');
+    if (t !== 'expense') setTag('');
   }, []);
 
   // ── Derived state ─────────────────────────────────────────────────────────
@@ -1220,6 +1222,7 @@ export default function AddTransactionScreen() {
           transaction_time: timeStr,
           description: description.trim() || null,
           notes: notes.trim() || null,
+          tag: txType === 'expense' ? (tag.trim() || null) : null,
         };
         if (isEditing) {
           await updateTransaction(editTx!.id, payload);
@@ -1461,6 +1464,28 @@ export default function AddTransactionScreen() {
               />
             </View>
           </View>
+
+          {/* ── Tag (expense only) ── */}
+          {txType === 'expense' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Tag <Text style={styles.optionalTag}>(optional)</Text></Text>
+              </View>
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={styles.textInput}
+                  value={tag}
+                  onChangeText={setTag}
+                  placeholder="e.g. split, reimbursable, work…"
+                  placeholderTextColor={ds.text.muted}
+                  selectionColor={ds.secondary}
+                  returnKeyType="done"
+                  maxLength={40}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         {/* ── CTA ── */}

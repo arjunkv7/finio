@@ -18,9 +18,9 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
   await db.runAsync(
     `INSERT INTO transactions
        (id, type, amount, account_id, to_account_id, category_id, description, notes,
-        transaction_date, transaction_time, receipt_photo_uri, is_recurring, recurrence_rule, trip_id,
+        transaction_date, transaction_time, receipt_photo_uri, is_recurring, recurrence_rule, trip_id, tag,
         is_deleted, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     [
       id,
       input.type,
@@ -36,6 +36,7 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
       input.is_recurring ?? 0,
       input.recurrence_rule ?? null,
       input.trip_id ?? null,
+      input.tag ?? null,
       ts,
       ts,
     ]
@@ -80,6 +81,10 @@ export async function getTransactions(filter?: TransactionFilter): Promise<Trans
     conditions.push('trip_id = ?');
     params.push(filter.trip_id);
   }
+  if (filter?.tag) {
+    conditions.push('tag = ?');
+    params.push(filter.tag);
+  }
   if (filter?.search) {
     conditions.push('(description LIKE ? OR notes LIKE ?)');
     params.push(`%${filter.search}%`, `%${filter.search}%`);
@@ -110,6 +115,7 @@ export async function getTransactionsPaginated(
   if (filter.start_date) { conditions.push('transaction_date >= ?'); params.push(filter.start_date); }
   if (filter.end_date) { conditions.push('transaction_date <= ?'); params.push(filter.end_date); }
   if (filter.trip_id) { conditions.push('trip_id = ?'); params.push(filter.trip_id); }
+  if (filter.tag) { conditions.push('tag = ?'); params.push(filter.tag); }
   if (filter.search) {
     conditions.push('(description LIKE ? OR notes LIKE ?)');
     params.push(`%${filter.search}%`, `%${filter.search}%`);
@@ -252,6 +258,51 @@ export async function getAnnualSummary(
      ORDER BY month ASC`,
     [`${year}-01-01`, `${year + 1}-01-01`]
   );
+}
+
+export async function getFilteredSummary(
+  filter: TransactionFilter
+): Promise<MonthlySummary> {
+  const db = await getDb();
+  const conditions: string[] = ['is_deleted = 0', "type IN ('income', 'expense')"];
+  const params: (string | number)[] = [];
+
+  if (filter.type) { conditions.push('type = ?'); params.push(filter.type); }
+  if (filter.account_id) {
+    conditions.push('(account_id = ? OR to_account_id = ?)');
+    params.push(filter.account_id, filter.account_id);
+  }
+  if (filter.category_id) { conditions.push('category_id = ?'); params.push(filter.category_id); }
+  if (filter.start_date) { conditions.push('transaction_date >= ?'); params.push(filter.start_date); }
+  if (filter.end_date) { conditions.push('transaction_date <= ?'); params.push(filter.end_date); }
+  if (filter.trip_id) { conditions.push('trip_id = ?'); params.push(filter.trip_id); }
+  if (filter.tag) { conditions.push('tag = ?'); params.push(filter.tag); }
+  if (filter.search) {
+    conditions.push('(description LIKE ? OR notes LIKE ?)');
+    params.push(`%${filter.search}%`, `%${filter.search}%`);
+  }
+
+  const where = conditions.join(' AND ');
+  const row = await db.getFirstAsync<{ income: number | null; expenses: number | null }>(
+    `SELECT
+       SUM(CASE WHEN type = 'income'  THEN amount ELSE 0 END) AS income,
+       SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS expenses
+     FROM transactions WHERE ${where}`,
+    params
+  );
+  const income = row?.income ?? 0;
+  const expenses = row?.expenses ?? 0;
+  return { income, expenses, net: income - expenses };
+}
+
+export async function getDistinctExpenseTags(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ tag: string }>(
+    `SELECT DISTINCT tag FROM transactions
+     WHERE type = 'expense' AND tag IS NOT NULL AND tag != '' AND is_deleted = 0
+     ORDER BY tag ASC`
+  );
+  return rows.map(r => r.tag);
 }
 
 // Last N months income vs expense for trend chart

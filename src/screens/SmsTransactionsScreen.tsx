@@ -24,7 +24,7 @@ import { useAccountsStore } from '../store/accountsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useTransactionsStore } from '../store/transactionsStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { requestSmsPermission, checkSmsPermission, initialInboxScan } from '../services/smsService';
+import { requestSmsPermission, checkSmsPermission } from '../services/smsService';
 import { createSmsTransaction } from '../db/queries/smsTransactionQueries';
 import AppCard from '../components/AppCard';
 import PageHeader from '../components/PageHeader';
@@ -411,10 +411,7 @@ export default function SmsTransactionsScreen() {
   const handleRequestPermission = async () => {
     const granted = await requestSmsPermission();
     setHasPermission(granted);
-    // Permission just granted — run the initial inbox scan immediately so the
-    // user sees results right away without closing and reopening the app.
     if (granted) {
-      await initialInboxScan();
       await loadPending();
     }
   };

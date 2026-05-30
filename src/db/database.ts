@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 const DB_NAME = 'finio.db';
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 8;
 
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -134,6 +134,27 @@ async function runMigrations(db: SQLite.SQLiteDatabase, from: number): Promise<v
     await db.execAsync(`ALTER TABLE settings ADD COLUMN privacy_hidden INTEGER NOT NULL DEFAULT 0;`);
     await setSchemaVersion(db, 6);
   }
+  if (from < 7) {
+    await db.execAsync(`ALTER TABLE transactions ADD COLUMN tag TEXT;`);
+    await setSchemaVersion(db, 7);
+  }
+  if (from < 8) {
+    // Collect linked transaction IDs before removing the FK rows
+    const smsRows = await db.getAllAsync<{ transaction_id: string }>(
+      "SELECT transaction_id FROM sms_transactions WHERE transaction_id IS NOT NULL"
+    );
+    // Delete child (FK referencing transactions) first
+    await db.runAsync("DELETE FROM sms_transactions");
+    // Then delete the auto-created transactions
+    if (smsRows.length > 0) {
+      const placeholders = smsRows.map(() => '?').join(',');
+      await db.runAsync(
+        `DELETE FROM transactions WHERE id IN (${placeholders})`,
+        smsRows.map(r => r.transaction_id)
+      );
+    }
+    await setSchemaVersion(db, 8);
+  }
 }
 
 // ─── Schema creation ─────────────────────────────────────────────────────────
@@ -197,6 +218,7 @@ async function createSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       is_recurring       INTEGER NOT NULL DEFAULT 0,
       recurrence_rule    TEXT,
       trip_id            TEXT             REFERENCES trips(id),
+      tag                TEXT,
       is_deleted         INTEGER NOT NULL DEFAULT 0,
       created_at         TEXT    NOT NULL,
       updated_at         TEXT    NOT NULL

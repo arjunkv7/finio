@@ -24,14 +24,17 @@ import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { hexToRgba } from '../utils/color';
 import { useSettingsStore } from '../store/settingsStore';
-import { requestSmsPermission, initialInboxScan } from '../services/smsService';
+import { requestSmsPermission } from '../services/smsService';
 import { useSmsTransactionsStore } from '../store/smsTransactionsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useAccountsStore } from '../store/accountsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
 import { useSavingsStore } from '../store/savingsStore';
 import { useInvestmentsStore } from '../store/investmentsStore';
-import { clearAllUserData, updateSettings } from '../db/database';
+import { useBudgetStore } from '../store/budgetStore';
+import { useTripsStore } from '../store/tripsStore';
+import { useRecurringStore } from '../store/recurringStore';
+import { clearAllUserData, ensureDefaultAccounts, updateSettings } from '../db/database';
 import { Category, CategoryType } from '../types/db';
 import AppCard from '../components/AppCard';
 import BottomSheet from '../components/BottomSheet';
@@ -756,6 +759,9 @@ export default function SettingsScreen() {
   const loadTransactions = useTransactionsStore(s => s.loadFromDB);
   const loadSavings      = useSavingsStore(s => s.loadFromDB);
   const loadInvestments  = useInvestmentsStore(s => s.loadFromDB);
+  const loadBudgets      = useBudgetStore(s => s.loadFromDB);
+  const loadTrips        = useTripsStore(s => s.loadFromDB);
+  const loadRecurring    = useRecurringStore(s => s.loadFromDB);
 
   const [view,            setView]            = useState<ScreenView>('main');
   const [showCurrency,    setShowCurrency]    = useState(false);
@@ -774,8 +780,6 @@ export default function SettingsScreen() {
     const granted = await requestSmsPermission();
     if (granted) {
       await saveToDb({ smsAutoDetect: 1 });
-      // Scan inbox and load data now that the feature is enabled
-      await initialInboxScan();
       await Promise.all([loadPending(), loadAutoCreated()]);
     } else {
       Alert.alert(
@@ -847,9 +851,14 @@ export default function SettingsScreen() {
                     setClearing(true);
                     try {
                       await clearAllUserData();
+                      await ensureDefaultAccounts();
+                      const now = new Date();
                       await Promise.all([
                         loadAccounts(), loadTransactions(),
                         loadSavings(), loadInvestments(), loadCategories(),
+                        loadBudgets(now.getFullYear(), now.getMonth() + 1),
+                        loadTrips(), loadRecurring(),
+                        loadPending(), loadAutoCreated(),
                       ]);
                       await saveToDb({ pinEnabled: 0 });
                       Alert.alert('Done', 'All data has been cleared.');

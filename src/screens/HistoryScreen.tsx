@@ -24,10 +24,15 @@ import { useAccountsStore } from '../store/accountsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { Transaction, TransactionFilter } from '../types';
-import { getTransactionsPaginated, getMonthlySummary } from '../db/queries';
+import {
+  getTransactionsPaginated,
+  getFilteredSummary,
+  getDistinctExpenseTags,
+} from '../db/queries';
 import TransactionListItem from '../components/TransactionListItem';
 import EmptyState from '../components/EmptyState';
 import MonthPickerSheet from '../components/MonthPickerSheet';
+import BottomSheet from '../components/BottomSheet';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +40,7 @@ const PAGE_SIZE = 30;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 type TypeFilter = 'all' | 'income' | 'expense';
+type DateMode = 'month' | 'custom';
 
 // ── List item types ───────────────────────────────────────────────────────────
 
@@ -67,16 +73,31 @@ function dateGroupLabel(dateStr: string): string {
 }
 
 function buildFilter(
-  year: number, month: number,
-  typeFilter: TypeFilter, search: string
+  dateMode: DateMode,
+  year: number,
+  month: number,
+  customStart: string,
+  customEnd: string,
+  typeFilter: TypeFilter,
+  categoryFilter: string | null,
+  tagFilter: string | null,
+  search: string,
 ): TransactionFilter {
-  const pad = String(month).padStart(2, '0');
-  const f: TransactionFilter = {
-    start_date: `${year}-${pad}-01`,
-    end_date:   `${year}-${pad}-31`,
-  };
-  if (typeFilter !== 'all') f.type = typeFilter;
-  if (search)               f.search = search;
+  const f: TransactionFilter = {};
+
+  if (dateMode === 'month') {
+    const pad = String(month).padStart(2, '0');
+    f.start_date = `${year}-${pad}-01`;
+    f.end_date   = `${year}-${pad}-31`;
+  } else {
+    if (customStart) f.start_date = customStart;
+    if (customEnd)   f.end_date   = customEnd;
+  }
+
+  if (typeFilter !== 'all')   f.type        = typeFilter;
+  if (categoryFilter)         f.category_id = categoryFilter;
+  if (tagFilter)              f.tag         = tagFilter;
+  if (search)                 f.search      = search;
   return f;
 }
 
@@ -86,24 +107,235 @@ function formatPaise(paise: number, symbol: string): string {
   })}`;
 }
 
+function shortDateStr(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+// ── Custom date range picker sheet ────────────────────────────────────────────
+
+interface DateRangeSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  startDate: string;
+  endDate: string;
+  onApply: (start: string, end: string) => void;
+  ds: DSType;
+}
+
+const CAL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function generateCalDays(year: number, month: number): (Date | null)[] {
+  const firstDay = new Date(year, month, 1);
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const days: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) days.push(null);
+  for (let d = 1; d <= lastDate; d++) days.push(new Date(year, month, d));
+  return days;
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function DateRangeSheet({ visible, onClose, startDate, endDate, onApply, ds }: DateRangeSheetProps) {
+  const today = new Date();
+  const [calYear,  setCalYear]  = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [selStart, setSelStart] = useState<Date | null>(null);
+  const [selEnd,   setSelEnd]   = useState<Date | null>(null);
+  const [picking,  setPicking]  = useState<'start' | 'end'>('start');
+
+  useEffect(() => {
+    if (visible) {
+      const now = new Date();
+      setCalYear(now.getFullYear());
+      setCalMonth(now.getMonth());
+      setSelStart(startDate ? (() => { const [y,m,d] = startDate.split('-').map(Number); return new Date(y,m-1,d); })() : null);
+      setSelEnd(endDate ? (() => { const [y,m,d] = endDate.split('-').map(Number); return new Date(y,m-1,d); })() : null);
+      setPicking('start');
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const calDays = useMemo(() => generateCalDays(calYear, calMonth), [calYear, calMonth]);
+  const calRows = useMemo(() => {
+    const rows: (Date | null)[][] = [];
+    for (let i = 0; i < calDays.length; i += 7) {
+      const row = calDays.slice(i, i + 7);
+      while (row.length < 7) row.push(null);
+      rows.push(row);
+    }
+    return rows;
+  }, [calDays]);
+
+  const shiftMonth = (delta: number) => {
+    let m = calMonth + delta;
+    let y = calYear;
+    if (m < 0) { m = 11; y--; }
+    if (m > 11) { m = 0; y++; }
+    setCalYear(y); setCalMonth(m);
+  };
+
+  const tapDay = (d: Date) => {
+    if (picking === 'start') {
+      setSelStart(d);
+      setSelEnd(null);
+      setPicking('end');
+    } else {
+      if (selStart && d < selStart) {
+        setSelStart(d); setSelEnd(selStart); setPicking('start');
+      } else {
+        setSelEnd(d); setPicking('start');
+      }
+    }
+  };
+
+  const inRange = (d: Date) => selStart && selEnd && d > selStart && d < selEnd;
+  const isStart = (d: Date) => !!(selStart && isSameDay(d, selStart));
+  const isEnd   = (d: Date) => !!(selEnd && isSameDay(d, selEnd));
+
+  const canApply = selStart !== null && selEnd !== null;
+
+  const apply = () => {
+    if (!canApply) return;
+    onApply(toLocalDateStr(selStart!), toLocalDateStr(selEnd!));
+    onClose();
+  };
+
+  const DOW = ['M','T','W','T','F','S','S'];
+  const accent = ds.primary;
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Custom Date Range">
+      <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+
+        {/* Picking indicator */}
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+          {(['start', 'end'] as const).map(which => {
+            const val = which === 'start' ? selStart : selEnd;
+            const isActive = picking === which;
+            return (
+              <TouchableOpacity
+                key={which}
+                style={{
+                  flex: 1, height: 44, borderRadius: 10,
+                  alignItems: 'center', justifyContent: 'center',
+                  borderWidth: 1.5,
+                  borderColor: isActive ? accent : ds.border.subtle,
+                  backgroundColor: isActive ? hexToRgba(accent, 0.1) : ds.surface.elevated,
+                }}
+                onPress={() => setPicking(which)}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: ds.text.muted, marginBottom: 2 }}>
+                  {which === 'start' ? 'FROM' : 'TO'}
+                </Text>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: val ? ds.text.primary : ds.text.muted }}>
+                  {val ? shortDateStr(toLocalDateStr(val)) : 'Select'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Month nav */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <TouchableOpacity style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => shiftMonth(-1)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="chevron-left" size={24} color={ds.text.secondary} />
+          </TouchableOpacity>
+          <Text style={{ flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 16, color: ds.text.primary }}>
+            {CAL_MONTHS[calMonth]} {calYear}
+          </Text>
+          <TouchableOpacity style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => shiftMonth(1)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={ds.text.secondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* DOW header */}
+        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+          {DOW.map((d, i) => (
+            <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: ds.text.muted }}>{d}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Calendar grid */}
+        {calRows.map((row, ri) => (
+          <View key={ri} style={{ flexDirection: 'row', marginBottom: 2 }}>
+            {row.map((d, ci) => {
+              if (!d) return <View key={ci} style={{ flex: 1 }} />;
+              const started = isStart(d);
+              const ended   = isEnd(d);
+              const inR     = inRange(d);
+              const highlighted = started || ended;
+              return (
+                <TouchableOpacity
+                  key={ci}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 2,
+                    backgroundColor: inR ? hexToRgba(accent, 0.12) : 'transparent' }}
+                  onPress={() => tapDay(d)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{
+                    width: 34, height: 34, borderRadius: 17,
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: highlighted ? accent : 'transparent',
+                  }}>
+                    <Text style={{
+                      fontFamily: highlighted ? 'Inter_700Bold' : 'Inter_400Regular',
+                      fontSize: 14,
+                      color: highlighted ? '#fff' : ds.text.primary,
+                    }}>
+                      {d.getDate()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+
+        <TouchableOpacity
+          style={{
+            height: 52, borderRadius: 12, backgroundColor: canApply ? accent : ds.surface.elevated,
+            alignItems: 'center', justifyContent: 'center', marginTop: 16,
+            borderWidth: canApply ? 0 : 1, borderColor: ds.border.subtle,
+          }}
+          onPress={apply}
+          disabled={!canApply}
+          activeOpacity={0.85}
+        >
+          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: canApply ? '#fff' : ds.text.muted }}>
+            Apply Range
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
 // ── Monthly summary footer ────────────────────────────────────────────────────
 
 interface SummaryBarProps {
   income: number;
   expenses: number;
   net: number;
-  year: number;
-  month: number;
+  label: string;
   currencySymbol: string;
   ds: DSType;
   styles: ReturnType<typeof makeStyles>;
 }
 
-function SummaryBar({ income, expenses, net, year, month, currencySymbol, ds, styles }: SummaryBarProps) {
+function SummaryBar({ income, expenses, net, label, currencySymbol, ds, styles }: SummaryBarProps) {
   const isPositive = net >= 0;
   return (
     <View style={styles.summaryContainer}>
-      <Text style={styles.summaryPeriod}>{MONTH_NAMES[month - 1]} {year}</Text>
+      <Text style={styles.summaryPeriod}>{label}</Text>
       <View style={styles.summaryRow}>
         <View style={styles.summaryStat}>
           <View style={[styles.summaryDot, { backgroundColor: ds.primary }]} />
@@ -147,7 +379,7 @@ export default function HistoryScreen() {
   const navigation  = useNavigation<any>();
   const insets      = useSafeAreaInsets();
 
-  const { getCategoryById, loadFromDB: loadCats } = useCategoriesStore();
+  const { getCategoryById, incomeCategories, expenseCategories, loadFromDB: loadCats } = useCategoriesStore();
   const { accounts, loadFromDB: loadAccounts }     = useAccountsStore();
   const { deleteTransaction }                      = useTransactionsStore();
   const { currencySymbol }                         = useSettingsStore();
@@ -155,11 +387,17 @@ export default function HistoryScreen() {
   // ── Filter state ──────────────────────────────────────────────────────────
 
   const now = new Date();
-  const [year,        setYear]        = useState(now.getFullYear());
-  const [month,       setMonth]       = useState(now.getMonth() + 1);
-  const [typeFilter,  setTypeFilter]  = useState<TypeFilter>('all');
-  const [search,      setSearch]      = useState('');
-  const [debSearch,   setDebSearch]   = useState('');
+  const [dateMode,       setDateMode]       = useState<DateMode>('month');
+  const [year,           setYear]           = useState(now.getFullYear());
+  const [month,          setMonth]          = useState(now.getMonth() + 1);
+  const [customStart,    setCustomStart]    = useState('');
+  const [customEnd,      setCustomEnd]      = useState('');
+  const [typeFilter,     setTypeFilter]     = useState<TypeFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [tagFilter,      setTagFilter]      = useState<string | null>(null);
+  const [availableTags,  setAvailableTags]  = useState<string[]>([]);
+  const [search,         setSearch]         = useState('');
+  const [debSearch,      setDebSearch]      = useState('');
 
   // ── Data state ────────────────────────────────────────────────────────────
 
@@ -168,8 +406,9 @@ export default function HistoryScreen() {
   const [isLoading,        setIsLoading]        = useState(false);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [isFetchingMore,   setIsFetchingMore]   = useState(false);
-  const [monthSummary,   setMonthSummary]   = useState({ income: 0, expenses: 0, net: 0 });
-  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [summary,        setSummary]        = useState({ income: 0, expenses: 0, net: 0 });
+  const [monthPickerOpen,    setMonthPickerOpen]    = useState(false);
+  const [dateRangeOpen,      setDateRangeOpen]      = useState(false);
 
   // Stable refs for loadMore closure
   const hasMoreRef        = useRef(false);
@@ -177,15 +416,24 @@ export default function HistoryScreen() {
   const filterRef         = useRef<TransactionFilter>({});
   const itemCountRef      = useRef(0);
 
-  // Refs so useFocusEffect can read current filter values without them as deps
-  const yearRef       = useRef(year);
-  const monthRef      = useRef(month);
-  const typeFilterRef = useRef(typeFilter);
-  const debSearchRef  = useRef(debSearch);
-  useEffect(() => { yearRef.current       = year;       }, [year]);
-  useEffect(() => { monthRef.current      = month;      }, [month]);
-  useEffect(() => { typeFilterRef.current = typeFilter; }, [typeFilter]);
-  useEffect(() => { debSearchRef.current  = debSearch;  }, [debSearch]);
+  const dateModRef       = useRef(dateMode);
+  const yearRef          = useRef(year);
+  const monthRef         = useRef(month);
+  const customStartRef   = useRef(customStart);
+  const customEndRef     = useRef(customEnd);
+  const typeFilterRef    = useRef(typeFilter);
+  const categoryFilterRef = useRef(categoryFilter);
+  const tagFilterRef     = useRef(tagFilter);
+  const debSearchRef     = useRef(debSearch);
+  useEffect(() => { dateModRef.current       = dateMode;       }, [dateMode]);
+  useEffect(() => { yearRef.current          = year;           }, [year]);
+  useEffect(() => { monthRef.current         = month;          }, [month]);
+  useEffect(() => { customStartRef.current   = customStart;    }, [customStart]);
+  useEffect(() => { customEndRef.current     = customEnd;      }, [customEnd]);
+  useEffect(() => { typeFilterRef.current    = typeFilter;     }, [typeFilter]);
+  useEffect(() => { categoryFilterRef.current = categoryFilter; }, [categoryFilter]);
+  useEffect(() => { tagFilterRef.current     = tagFilter;      }, [tagFilter]);
+  useEffect(() => { debSearchRef.current     = debSearch;      }, [debSearch]);
 
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { itemCountRef.current = items.length; }, [items]);
@@ -194,10 +442,15 @@ export default function HistoryScreen() {
 
   useEffect(() => { loadCats(); loadAccounts(); }, [loadCats, loadAccounts]);
 
-  // Reload list silently when screen regains focus (e.g. back from AddTransaction)
-  // Uses refs so filter changes don't re-trigger this
+  // Reload on focus
   useFocusEffect(useCallback(() => {
-    triggerLoad(yearRef.current, monthRef.current, typeFilterRef.current, debSearchRef.current, false);
+    triggerLoad(
+      dateModRef.current, yearRef.current, monthRef.current,
+      customStartRef.current, customEndRef.current,
+      typeFilterRef.current, categoryFilterRef.current,
+      tagFilterRef.current, debSearchRef.current, false,
+    );
+    getDistinctExpenseTags().then(setAvailableTags).catch(() => {});
   }, []));
 
   // ── Search debounce ───────────────────────────────────────────────────────
@@ -207,35 +460,38 @@ export default function HistoryScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // ── Load when any filter changes (silent, no full-screen spinner) ─────────
+  // ── Load when any filter changes ──────────────────────────────────────────
 
-  const prevMonthRef = useRef<string>(`${year}-${month}`);
+  const prevDateKeyRef = useRef<string>(`${dateMode}-${year}-${month}-${customStart}-${customEnd}`);
 
   useEffect(() => {
-    const monthKey = `${year}-${month}`;
-    const monthChanged = prevMonthRef.current !== monthKey;
-    prevMonthRef.current = monthKey;
-    triggerLoad(year, month, typeFilter, debSearch, monthChanged);
-  }, [year, month, typeFilter, debSearch]);
+    const dateKey = `${dateMode}-${year}-${month}-${customStart}-${customEnd}`;
+    const dateChanged = prevDateKeyRef.current !== dateKey;
+    prevDateKeyRef.current = dateKey;
+    triggerLoad(dateMode, year, month, customStart, customEnd, typeFilter, categoryFilter, tagFilter, debSearch, dateChanged);
+  }, [dateMode, year, month, customStart, customEnd, typeFilter, categoryFilter, tagFilter, debSearch]);
 
   // ── Load helpers ──────────────────────────────────────────────────────────
 
   const triggerLoad = useCallback(async (
-    y: number, mo: number, tf: TypeFilter, s: string, clearFirst = false
+    dm: DateMode, y: number, mo: number,
+    cs: string, ce: string,
+    tf: TypeFilter, cf: string | null, tgf: string | null,
+    s: string, clearFirst = false,
   ) => {
-    const f = buildFilter(y, mo, tf, s);
+    const f = buildFilter(dm, y, mo, cs, ce, tf, cf, tgf, s);
     filterRef.current = f;
     setIsLoading(true);
     if (clearFirst) { setItems([]); setHasMore(false); }
     try {
-      const [txs, summary] = await Promise.all([
+      const [txs, sum] = await Promise.all([
         getTransactionsPaginated(f, PAGE_SIZE, 0),
-        getMonthlySummary(y, mo),
+        getFilteredSummary(f),
       ]);
       setItems(txs);
       hasMoreRef.current = txs.length === PAGE_SIZE;
       setHasMore(txs.length === PAGE_SIZE);
-      setMonthSummary(summary);
+      setSummary(sum);
     } catch (e) { console.warn('[History] load error', e); }
     finally { setIsLoading(false); }
   }, []);
@@ -270,17 +526,48 @@ export default function HistoryScreen() {
           onPress: async () => {
             await deleteTransaction(tx.id);
             setItems(prev => prev.filter(t => t.id !== tx.id));
-            // Refresh summary
-            getMonthlySummary(year, month).then(setMonthSummary).catch(() => {});
+            getFilteredSummary(filterRef.current).then(setSummary).catch(() => {});
           },
         },
       ]
     );
-  }, [deleteTransaction, year, month]);
+  }, [deleteTransaction]);
 
   const handleMonthChange = useCallback((y: number, m: number) => {
-    setYear(y); setMonth(m); setTypeFilter('all'); setSearch('');
+    setDateMode('month');
+    setYear(y); setMonth(m);
+    setTypeFilter('all'); setCategoryFilter(null); setTagFilter(null); setSearch('');
   }, []);
+
+  const handleCustomRange = useCallback((start: string, end: string) => {
+    setDateMode('custom');
+    setCustomStart(start); setCustomEnd(end);
+    setTypeFilter('all'); setCategoryFilter(null); setTagFilter(null); setSearch('');
+  }, []);
+
+  // When type filter changes, reset dependent filters
+  const handleTypeFilter = useCallback((tf: TypeFilter) => {
+    setTypeFilter(tf);
+    setCategoryFilter(null);
+    setTagFilter(null);
+  }, []);
+
+  // ── Derived category list for filter ─────────────────────────────────────
+
+  const filterCategories = useMemo(() => {
+    if (typeFilter === 'income') return incomeCategories;
+    if (typeFilter === 'expense') return expenseCategories;
+    return [];
+  }, [typeFilter, incomeCategories, expenseCategories]);
+
+  // ── Summary bar label ─────────────────────────────────────────────────────
+
+  const summaryLabel = useMemo(() => {
+    if (dateMode === 'custom' && customStart && customEnd) {
+      return `${shortDateStr(customStart)} – ${shortDateStr(customEnd)}`;
+    }
+    return `${MONTH_NAMES[month - 1]} ${year}`;
+  }, [dateMode, customStart, customEnd, month, year]);
 
   // ── Grouped list data ─────────────────────────────────────────────────────
 
@@ -315,7 +602,9 @@ export default function HistoryScreen() {
     const tx  = item.tx;
     const cat = tx.category_id ? getCategoryById(tx.category_id) : null;
     const acct = accountName(tx.account_id);
-    const meta = [cat?.name, acct].filter(Boolean).join('  ·  ');
+    const metaParts = [cat?.name, acct].filter(Boolean);
+    if (tx.tag) metaParts.push(`#${tx.tag}`);
+    const meta = metaParts.join('  ·  ');
     return (
       <TransactionListItem
         icon={(cat?.icon ?? 'cash-multiple') as any}
@@ -331,17 +620,16 @@ export default function HistoryScreen() {
     );
   }, [getCategoryById, accountName, handleEdit, handleDelete, ds, styles]);
 
-  // ── Header component (summary + search + chips) ──────────────────────────
+  // ── Header component ──────────────────────────────────────────────────────
 
   const ListHeader = useMemo(() => (
     <View style={styles.listHeader}>
-      {/* Monthly summary */}
+      {/* Summary */}
       <SummaryBar
-        income={monthSummary.income}
-        expenses={monthSummary.expenses}
-        net={monthSummary.net}
-        year={year}
-        month={month}
+        income={summary.income}
+        expenses={summary.expenses}
+        net={summary.net}
+        label={summaryLabel}
         currencySymbol={currencySymbol}
         ds={ds}
         styles={styles}
@@ -367,7 +655,7 @@ export default function HistoryScreen() {
         )}
       </View>
 
-      {/* Filter chips */}
+      {/* Type filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {(['all', 'income', 'expense'] as TypeFilter[]).map((f) => {
           const active = typeFilter === f;
@@ -382,7 +670,7 @@ export default function HistoryScreen() {
                   ? { backgroundColor: hexToRgba(chipColor, 0.18), borderColor: chipColor }
                   : { borderColor: ds.border.subtle },
               ]}
-              onPress={() => setTypeFilter(f)}
+              onPress={() => handleTypeFilter(f)}
               activeOpacity={0.75}
             >
               {f !== 'all' && (
@@ -398,11 +686,64 @@ export default function HistoryScreen() {
         })}
       </ScrollView>
 
+      {/* Category filter chips (shown when type is income or expense) */}
+      {filterCategories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {filterCategories.map(cat => {
+            const active = categoryFilter === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.chip,
+                  active
+                    ? { backgroundColor: hexToRgba(cat.color, 0.18), borderColor: cat.color }
+                    : { borderColor: ds.border.subtle },
+                ]}
+                onPress={() => setCategoryFilter(active ? null : cat.id)}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons
+                  name={cat.icon as any}
+                  size={14}
+                  color={active ? cat.color : ds.text.muted}
+                />
+                <Text style={[styles.chipText, active && { color: cat.color }]}>{cat.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Tag filter chips (expense only) */}
+      {typeFilter === 'expense' && availableTags.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {availableTags.map(t => {
+            const active = tagFilter === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                style={[
+                  styles.chip,
+                  active
+                    ? { backgroundColor: hexToRgba(ds.secondary, 0.18), borderColor: ds.secondary }
+                    : { borderColor: ds.border.subtle },
+                ]}
+                onPress={() => setTagFilter(active ? null : t)}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name="tag-outline" size={14} color={active ? ds.secondary : ds.text.muted} />
+                <Text style={[styles.chipText, active && { color: ds.secondaryLight }]}>#{t}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [isLoading, items.length, monthSummary, year, month, currencySymbol, search, typeFilter, ds, styles]);
+  ), [isLoading, items.length, summary, summaryLabel, currencySymbol, search, typeFilter, categoryFilter, tagFilter, filterCategories, availableTags, ds, styles]);
 
-  // ── Footer component (summary + load more) ────────────────────────────────
+  // ── Footer component ──────────────────────────────────────────────────────
 
   const ListFooter = useMemo(() => (
     <View>
@@ -424,14 +765,23 @@ export default function HistoryScreen() {
       subtitle={
         search
           ? `Nothing matches "${search}". Try different keywords.`
-          : `No ${typeFilter === 'all' ? '' : typeFilter + ' '}transactions in ${MONTH_NAMES[month - 1]} ${year}.`
+          : `No ${typeFilter === 'all' ? '' : typeFilter + ' '}transactions for this period.`
       }
     />
   ) : (
     <View style={styles.loadingCenter}>
       <ActivityIndicator size="large" color={ds.primary} />
     </View>
-  ), [isLoading, search, typeFilter, month, year, styles, ds]);
+  ), [isLoading, search, typeFilter, styles, ds]);
+
+  // ── Date button label ─────────────────────────────────────────────────────
+
+  const dateBtnLabel = useMemo(() => {
+    if (dateMode === 'custom' && customStart && customEnd) {
+      return `${shortDateStr(customStart)} – ${shortDateStr(customEnd)}`;
+    }
+    return `${MONTH_NAMES[month - 1]} ${year}`;
+  }, [dateMode, customStart, customEnd, month, year]);
 
   // ── Screen ────────────────────────────────────────────────────────────────
 
@@ -439,15 +789,29 @@ export default function HistoryScreen() {
     <View style={styles.root}>
       <BrandHeader
         right={
-          <TouchableOpacity
-            style={styles.monthBtn}
-            onPress={() => setMonthPickerOpen(true)}
-            activeOpacity={0.75}
-          >
-            <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
-            <Text style={styles.monthBtnText}>{MONTH_NAMES[month - 1]} {year}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.monthBtn}
+              onPress={() => setMonthPickerOpen(true)}
+              activeOpacity={0.75}
+            >
+              <MaterialCommunityIcons name="calendar-month-outline" size={16} color={ds.primaryLight} />
+              <Text style={styles.monthBtnText}>{dateBtnLabel}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color={ds.primaryLight} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rangeBtn}
+              onPress={() => setDateRangeOpen(true)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialCommunityIcons
+                name="calendar-range"
+                size={18}
+                color={dateMode === 'custom' ? ds.primaryLight : ds.text.muted}
+              />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -466,7 +830,10 @@ export default function HistoryScreen() {
             refreshing={isPullRefreshing}
             onRefresh={async () => {
               setIsPullRefreshing(true);
-              await triggerLoad(year, month, typeFilter, debSearch, true);
+              await triggerLoad(
+                dateMode, year, month, customStart, customEnd,
+                typeFilter, categoryFilter, tagFilter, debSearch, true,
+              );
               setIsPullRefreshing(false);
             }}
             tintColor={ds.primary}
@@ -487,6 +854,16 @@ export default function HistoryScreen() {
         onChange={handleMonthChange}
         ds={ds}
       />
+
+      {/* Custom date range picker */}
+      <DateRangeSheet
+        visible={dateRangeOpen}
+        onClose={() => setDateRangeOpen(false)}
+        startDate={customStart}
+        endDate={customEnd}
+        onApply={handleCustomRange}
+        ds={ds}
+      />
     </View>
   );
 }
@@ -498,20 +875,7 @@ function makeStyles(ds: DSType) {
     root: { flex: 1, backgroundColor: ds.surface.screen },
 
     // Top bar
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: ds.border.subtle,
-    },
-    title: {
-      fontFamily: 'Inter_700Bold',
-      fontSize: 24, lineHeight: 32, letterSpacing: -0.48,
-      color: ds.text.primary,
-    },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     monthBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -527,6 +891,11 @@ function makeStyles(ds: DSType) {
       fontFamily: 'Inter_600SemiBold',
       fontSize: 13, lineHeight: 18,
       color: ds.primaryLight,
+    },
+    rangeBtn: {
+      width: 32, height: 32,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: ds.radius.full,
     },
 
     // List header (search + chips)
@@ -588,7 +957,7 @@ function makeStyles(ds: DSType) {
     loadingMore: { paddingVertical: 20, alignItems: 'center' },
     loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
 
-    // Summary bar (formerly `sb`)
+    // Summary bar
     summaryContainer: {
       margin: 16,
       padding: 16,
@@ -613,6 +982,5 @@ function makeStyles(ds: DSType) {
       fontFamily: 'Inter_600SemiBold', fontSize: 13, lineHeight: 18,
     },
     summaryDivider: { width: 1, height: 36, backgroundColor: ds.border.subtle, marginHorizontal: 8 },
-
   });
 }

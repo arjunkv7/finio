@@ -106,6 +106,7 @@ export interface Transaction {
   is_recurring: number;
   recurrence_rule: RecurrenceRule | null;
   trip_id: string | null;
+  tag: string | null;
   is_deleted: number;
   created_at: string;
   updated_at: string;
@@ -125,6 +126,7 @@ export interface CreateTransactionInput {
   is_recurring?: number;
   recurrence_rule?: RecurrenceRule | null;
   trip_id?: string | null;
+  tag?: string | null;
 }
 
 export type UpdateTransactionInput = Partial<CreateTransactionInput>;
@@ -133,6 +135,7 @@ export interface TransactionFilter {
   type?: TransactionType;
   account_id?: string;
   category_id?: string;
+  tag?: string;
   start_date?: string;
   end_date?: string;
   search?: string;
