@@ -35,4 +35,3 @@ export async function checkSmsPermission(): Promise<boolean> {
   ]);
   return read && receive;
 }
-

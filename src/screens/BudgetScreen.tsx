@@ -15,7 +15,7 @@ import { DSType } from '../constants/colors';
 import { useDS } from '../hooks/useDS';
 import { useSettingsStore } from '../store/settingsStore';
 import { useBudgetStore } from '../store/budgetStore';
-import { BottomSheet, ProgressBar, EmptyState } from '../components';
+import { BottomSheet, ProgressBar } from '../components';
 import { Category, BudgetProgress } from '../types/db';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -193,6 +193,30 @@ function makeStyles(ds: DSType) {
       flex: 1,
     },
 
+    // Info header shown at the top of the empty-state scroll
+    emptyInfoBox: {
+      alignItems: 'center',
+      paddingVertical: 32,
+      paddingHorizontal: 40,
+      gap: 8,
+    },
+    emptyIconRing: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: ds.surface.elevated,
+      borderWidth: 1,
+      borderColor: ds.border.subtle,
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: 8,
+    },
+    emptyInfoTitle: {
+      fontFamily: 'Inter_600SemiBold', fontSize: 18, color: ds.text.primary,
+      textAlign: 'center',
+    },
+    emptyInfoSubtitle: {
+      fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20,
+      color: ds.text.muted, textAlign: 'center',
+    },
+
     // Bottom sheet
     sheetBody: {
       paddingHorizontal: 20,
@@ -353,12 +377,29 @@ export default function BudgetScreen() {
       </View>
 
       {!hasBudgets ? (
-        <EmptyState
-          icon="speedometer-medium"
-          title="No budgets yet"
-          message="Set monthly limits for your spending categories to track where your money goes."
-          action={{ label: 'Set your first budget', onPress: () => unbudgetedCategories[0] && openSheet(unbudgetedCategories[0]) }}
-        />
+        <ScrollView
+          style={styles.emptyUnbudgetedScroll}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24, paddingTop: 0, gap: 10 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.emptyInfoBox}>
+            <View style={styles.emptyIconRing}>
+              <MaterialCommunityIcons name="speedometer-medium" size={28} color={ds.text.muted} />
+            </View>
+            <Text style={styles.emptyInfoTitle}>No budgets yet</Text>
+            <Text style={styles.emptyInfoSubtitle}>
+              Set monthly limits for your spending categories to track where your money goes.
+            </Text>
+          </View>
+          {unbudgetedCategories.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Set Budget</Text>
+              {unbudgetedCategories.map(cat => (
+                <UnbudgetedRow key={cat.id} cat={cat} onPress={() => openSheet(cat)} />
+              ))}
+            </View>
+          )}
+        </ScrollView>
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -412,20 +453,6 @@ export default function BudgetScreen() {
               ))}
             </View>
           )}
-        </ScrollView>
-      )}
-
-      {/* Unbudgeted list even in empty state so user can add */}
-      {!hasBudgets && unbudgetedCategories.length > 0 && (
-        <ScrollView
-          style={styles.emptyUnbudgetedScroll}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.sectionTitle}>Set Budget</Text>
-          {unbudgetedCategories.map(cat => (
-            <UnbudgetedRow key={cat.id} cat={cat} onPress={() => openSheet(cat)} />
-          ))}
         </ScrollView>
       )}
 

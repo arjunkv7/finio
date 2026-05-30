@@ -32,7 +32,10 @@
     "plugins": [
       "expo-sqlite",
       "expo-font",
-      "expo-notifications"
+      ["expo-notifications", {
+        "icon": "./assets/icon.png",
+        "color": "#10B981"
+      }]
     ]
   }
 }

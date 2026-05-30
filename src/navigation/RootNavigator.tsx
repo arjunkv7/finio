@@ -17,6 +17,22 @@ import Animated, {
   useSharedValue, useAnimatedStyle, withSpring,
 } from 'react-native-reanimated';
 import { createStackNavigator } from '@react-navigation/stack';
+import type { StackCardInterpolationProps } from '@react-navigation/stack';
+
+// Only the top card slides; the background (Tabs) stays put — prevents the
+// "sidebar flash" when popping back to the tab navigator.
+function slideFromRight({ current, layouts }: StackCardInterpolationProps) {
+  return {
+    cardStyle: {
+      transform: [{
+        translateX: current.progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [layouts.screen.width, 0],
+        }),
+      }],
+    },
+  };
+}
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types';
 import TabNavigator from './TabNavigator';
@@ -482,7 +498,7 @@ function makeModalStyles() {
 export default function RootNavigator() {
   return (
     <>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, cardStyleInterpolator: slideFromRight }}>
         <Stack.Screen name="Tabs" component={TabNavigator} />
         <Stack.Screen
           name="AddTransaction"

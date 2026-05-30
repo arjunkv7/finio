@@ -23,6 +23,8 @@ import { useAccountsStore } from '../store/accountsStore';
 import { useTransactionsStore } from '../store/transactionsStore';
 import { useCategoriesStore } from '../store/categoriesStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useTripsStore } from '../store/tripsStore';
+import { Trip } from '../types/db';
 import AppCard from '../components/AppCard';
 import AmountText from '../components/AmountText';
 import { getUnreadNotificationsCount } from '../db/queries/notificationQueries';
@@ -48,6 +50,23 @@ const PIE_CX    = PIE_SIZE / 2;
 const PIE_CY    = PIE_SIZE / 2;
 
 const CAT_PALETTE = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFEAA7', '#DDA0DD', '#96CEB4'];
+
+const TRIP_PALETTE = [
+  '#10B981', '#F43F5E', '#F59E0B', '#9C7EF0',
+  '#3B82F6', '#EC4899', '#14B8A6', '#F97316',
+];
+
+function tripAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return TRIP_PALETTE[Math.abs(hash) % TRIP_PALETTE.length];
+}
+
+function tripInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
 // ── SVG helpers ──────────────────────────────────────────────────────────────
 
@@ -193,6 +212,7 @@ export default function HomeScreen() {
     transactions, monthlySummary, activeMonth,
     loadFromDB: loadTransactions, setActiveMonth,
   } = useTransactionsStore();
+  const { trips, loadFromDB: loadTrips, selectTrip } = useTripsStore();
 
   const autoCreatedCount = useSmsTransactionsStore(s => s.autoCreated.length);
   const snoozed          = useSmsTransactionsStore(s => s.snoozed);
@@ -202,8 +222,8 @@ export default function HomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
-    await Promise.all([loadAccounts(), loadCategories(), loadTransactions()]);
-  }, [loadAccounts, loadCategories, loadTransactions]);
+    await Promise.all([loadAccounts(), loadCategories(), loadTransactions(), loadTrips()]);
+  }, [loadAccounts, loadCategories, loadTransactions, loadTrips]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -229,6 +249,28 @@ export default function HomeScreen() {
   const savingsRate = monthlySummary.income > 0
     ? Math.max(0, (monthlySummary.net / monthlySummary.income) * 100)
     : 0;
+
+  const activeTrips = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return trips.filter(trip => {
+      if (trip.is_deleted || trip.is_settled) return false;
+      if (!trip.start_date && !trip.end_date) return false;
+      const start = trip.start_date ? new Date(trip.start_date) : null;
+      const end   = trip.end_date   ? new Date(trip.end_date)   : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end)   end.setHours(23, 59, 59, 999);
+      if (start && end) return today >= start && today <= end;
+      if (start)        return today >= start;
+      if (end)          return today <= end;
+      return false;
+    });
+  }, [trips]);
+
+  const handleTripPress = useCallback(async (trip: Trip) => {
+    await selectTrip(trip.id);
+    navigation.navigate('Trips', { screen: 'TripDetail', params: { tripId: trip.id } });
+  }, [selectTrip, navigation]);
 
   const formatBal = (paise: number) =>
     (Math.abs(paise) / 100).toLocaleString('en-IN', {
@@ -368,6 +410,32 @@ export default function HomeScreen() {
             <Text style={[styles.actionLabel, { color: ds.primaryLight }]}>Income</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Active Trips ── */}
+        {activeTrips.length > 0 && (
+          <View style={styles.activeTripsSection}>
+            <Text style={styles.sectionTitle}>Recent Trips</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tripsBubbleRow}
+            >
+              {activeTrips.map(trip => (
+                <TouchableOpacity
+                  key={trip.id}
+                  style={styles.tripBubbleWrap}
+                  onPress={() => handleTripPress(trip)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.tripBubble, { backgroundColor: tripAvatarColor(trip.name) }]}>
+                    <Text style={styles.tripBubbleInitials}>{tripInitials(trip.name)}</Text>
+                  </View>
+                  <Text style={styles.tripBubbleName} numberOfLines={1}>{trip.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* ── Savings Overview ── */}
         <AppCard padding={20} style={styles.savingsCard}>
@@ -831,6 +899,35 @@ function makeStyles(ds: DSType) {
     reviewBannerText: { flex: 1, gap: 2 },
     reviewBannerTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: ds.text.primary },
     reviewBannerSub:   { fontFamily: 'Inter_400Regular', fontSize: 12, color: ds.text.secondary },
+
+    // Active trips
+    activeTripsSection: { gap: 10 },
+    tripsBubbleRow: { gap: 16, paddingBottom: 2 },
+    tripBubbleWrap: {
+      alignItems: 'center',
+      gap: 6,
+      width: 68,
+    },
+    tripBubble: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tripBubbleInitials: {
+      fontFamily: 'Inter_700Bold',
+      fontSize: 18,
+      lineHeight: 24,
+      color: '#fff',
+    },
+    tripBubbleName: {
+      fontFamily: 'Inter_500Medium',
+      fontSize: 11,
+      lineHeight: 14,
+      color: ds.text.secondary,
+      textAlign: 'center',
+    },
 
   });
 }

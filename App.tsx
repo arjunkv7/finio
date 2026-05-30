@@ -20,7 +20,7 @@ import { useSettingsStore } from './src/store/settingsStore';
 import { useRecurringStore } from './src/store/recurringStore';
 import { useTransactionsStore } from './src/store/transactionsStore';
 import { useSmsTransactionsStore } from './src/store/smsTransactionsStore';
-import { initialInboxScan, checkSmsPermission, requestSmsPermission } from './src/services/smsService';
+import { checkSmsPermission, requestSmsPermission } from './src/services/smsService';
 
 const darkNavTheme = {
   ...DarkTheme,
@@ -78,12 +78,40 @@ function PermissionsSetup() {
     (async () => {
       // 1. Notification permission — must finish before SMS to avoid dialog conflict
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted' && Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('transactions', {
-          name: 'Auto-detected Transactions',
-          importance: Notifications.AndroidImportance.HIGH,
-          vibrationPattern: [0, 250],
-          showBadge: false,
+      if (status === 'granted') {
+        if (Platform.OS === 'android') {
+          await Promise.all([
+            Notifications.setNotificationChannelAsync('transactions', {
+              name: 'Auto-detected Transactions',
+              importance: Notifications.AndroidImportance.HIGH,
+              vibrationPattern: [0, 250],
+              showBadge: false,
+            }),
+            Notifications.setNotificationChannelAsync('daily_reminder', {
+              name: 'Daily Finance Reminder',
+              importance: Notifications.AndroidImportance.DEFAULT,
+              vibrationPattern: [0, 200],
+              showBadge: false,
+            }),
+          ]);
+        }
+
+        // Schedule daily 8 PM review reminder — cancel first to avoid duplicates on relaunch
+        await Notifications.cancelScheduledNotificationAsync('finio-daily-review').catch(() => {});
+        await Notifications.scheduleNotificationAsync({
+          identifier: 'finio-daily-review',
+          content: {
+            title: "Time to review your day 💰",
+            body: "A quick look at today's transactions keeps your finances on track. Tap to log.",
+            sound: true,
+            color: '#10B981',
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 20,
+            minute: 0,
+            channelId: 'daily_reminder',
+          },
         });
       }
 
@@ -102,8 +130,6 @@ function PermissionsSetup() {
         }
       }
 
-      // 3. Initial inbox scan (no-op if already done on a previous launch)
-      await initialInboxScan();
       await Promise.all([loadPending(), loadAutoCreated()]);
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
